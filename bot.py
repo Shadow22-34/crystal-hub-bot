@@ -100,4 +100,4 @@ async def on_ready():
     print(f'Bot is logged in as {bot.user}')
     await start_server()
 
-bot.run(os.getenv('MTM0MDYzNjA0NDg3MzMwMjA0Nw.GoPoAT.VzvaSafo9LO8h0ku3wHd-N_-diMTvB3ZyYXtSE'))
+bot.run(os.getenv('DISCORD_TOKEN'))
