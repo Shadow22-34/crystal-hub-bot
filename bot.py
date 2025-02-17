@@ -62,34 +62,35 @@ def log_message(category, message, error=None):
     if error:
         print(f"[{timestamp}] [{category}] ERROR: {str(error)}")
 
-# Your complete Crystal Hub script with key system
+# Store the EXACT Crystal Hub script
 crystal_hub_script = """
--- Initial setup
+print("💎 Starting Crystal Hub Key System...")
+
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
-local USERNAME = game:GetService("Players").LocalPlayer.Name
-local CURRENT_TIME = os.date("%Y-%m-%d %H:%M:%S")
+local USERNAME = "jiohasdas"
+local CURRENT_TIME = "2025-02-17 19:37:41"
 
--- Debug logging
 local function log(category, message, ...)
-    print(string.format("[%s] [%s] %s", CURRENT_TIME, category, string.format(message, ...)))
+    print(string.format("[%s] [%s] %s", CURRENT_TIME, category, string.format(message, ...))) 
 end
 
 log("INIT", "Starting Crystal Scripts Key System")
 
--- Load UI Library
-local lib = loadstring(game:HttpGet('https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/Vape.txt'))()
-local win = lib:Window("Crystal Scripts - Key System", Color3.fromRGB(255, 134, 236), Enum.KeyCode.RightControl)
-local verifyTab = win:Tab("Key System")
+local lib, win
+local success, result = pcall(function()
+    lib = loadstring(game:HttpGet('https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/Vape.txt'))()
+    win = lib:Window("Crystal Scripts - Key System", Color3.fromRGB(255, 134, 236), Enum.KeyCode.RightControl)
+    return true
+end)
 
--- Rest of your Crystal Hub script...
-""" # Paste your ENTIRE Crystal Hub script here
+-- YOUR ENTIRE CRYSTAL HUB SCRIPT HERE (EXACTLY AS IS)
+"""
 
 # Encrypt and save to JSON with better logging
 def save_encrypted_script():
     try:
-        log_message("ENCRYPT", "Starting script encryption...")
-        
+        print("Saving script to JSON...")
         f = Fernet(encryption_key)
         encrypted = f.encrypt(crystal_hub_script.encode())
         
@@ -99,12 +100,9 @@ def save_encrypted_script():
         
         with open("crystal_hub.json", "w") as f:
             json.dump(script_data, f)
-            
-        log_message("ENCRYPT", "✅ Script successfully encrypted and saved!")
-        return True
+        print("✅ Script saved successfully!")
     except Exception as e:
-        log_message("ENCRYPT", "❌ Failed to encrypt script", e)
-        return False
+        print("❌ Failed to save script:", str(e))
 
 # Call this when bot starts
 save_encrypted_script()
@@ -161,41 +159,31 @@ async def handle_callback(request):
 print("💎 Loading Crystal Hub...")
 
 local function LoadCrystalHub()
-    local success, result = pcall(function()
-        -- Use syn.request for better compatibility
-        local request = syn and syn.request or http and http.request or http_request or request
-        
-        if not request then
-            warn("❌ Exploit not supported! Missing HTTP functions")
-            return
-        end
-        
-        local response = request({{
-            Url = "https://crystal-hub-bot.onrender.com/api/loader",
-            Method = "GET"
-        }})
-        
-        if response.StatusCode == 200 then
-            local data = game:GetService("HttpService"):JSONDecode(response.Body)
-            if data.success then
-                loadstring(data.script)()
-            else
-                warn("❌ Failed to load Crystal Hub:", data.message)
-            end
-        else
-            warn("❌ Failed to contact server:", response.StatusCode)
-        end
-    end)
+    local request = syn and syn.request or http and http.request or http_request or request
     
-    if not success then
-        warn("❌ Error loading Crystal Hub:", result)
+    if not request then
+        warn("❌ Exploit not supported!")
+        return
+    end
+    
+    local response = request({
+        Url = "https://crystal-hub-bot.onrender.com/api/loader",
+        Method = "GET"
+    })
+    
+    if response.StatusCode == 200 then
+        local data = game:GetService("HttpService"):JSONDecode(response.Body)
+        if data.success and data.script then
+            loadstring(data.script)()
+        else
+            warn("❌ Failed to load Crystal Hub:", data.message)
+        end
+    else
+        warn("❌ Failed to contact server!")
     end
 end
 
--- Start loading
-spawn(function()
-    LoadCrystalHub()
-end)
+LoadCrystalHub()
 """
                 
                 # Send to user
