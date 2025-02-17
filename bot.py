@@ -102,6 +102,8 @@ async def handle_callback(request):
                 user_data = await resp.json()
                 
                 user_id = int(user_data['id'])
+                
+                # Generate key
                 key = f"CRYSTAL-{random.randint(100000, 999999)}"
                 
                 # Auto-activate the key when generated
@@ -116,30 +118,51 @@ async def handle_callback(request):
                 }
                 await save_keys()
                 
-                # Create loader script with their key
+                # Create loader script with their key embedded
                 loader_script = f"""
 -- Crystal Hub Loader
 print("💎 Loading Crystal Hub...")
 
-local HttpService = game:GetService("HttpService")
-
-local success, response = pcall(function()
-    return HttpService:GetAsync("https://crystal-hub-bot.onrender.com/api/loader")
-end)
-
-if success then
-    local data = HttpService:JSONDecode(response)
-    if data.success then
-        loadstring(data.script)()
-    else
-        warn("Failed to load Crystal Hub:", data.message)
+local function LoadCrystalHub()
+    local success, result = pcall(function()
+        -- Use syn.request for better compatibility
+        local request = syn and syn.request or http and http.request or http_request or request
+        
+        if not request then
+            warn("❌ Exploit not supported! Missing HTTP functions")
+            return
+        end
+        
+        local response = request({{
+            Url = "https://crystal-hub-bot.onrender.com/api/loader",
+            Method = "GET"
+        }})
+        
+        if response.StatusCode == 200 then
+            local data = game:GetService("HttpService"):JSONDecode(response.Body)
+            if data.success then
+                loadstring(data.script)()
+            else
+                warn("❌ Failed to load Crystal Hub:", data.message)
+            end
+        else
+            warn("❌ Failed to contact server:", response.StatusCode)
+        end
+    end)
+    
+    if not success then
+        warn("❌ Error loading Crystal Hub:", result)
     end
-else
-    warn("Failed to contact server:", response)
 end
+
+-- Start loading
+spawn(function()
+    LoadCrystalHub()
+end)
 """
                 
-                user = bot.get_user(user_id)
+                # Send to user
+                user = await bot.fetch_user(int(user_id))
                 if user:
                     try:
                         # Send key embed
@@ -147,6 +170,11 @@ end
                             title="🔮 Crystal Hub Key",
                             description=f"Here's your key: `{key}`",
                             color=discord.Color.purple()
+                        )
+                        key_embed.add_field(
+                            name="Instructions",
+                            value="1. Copy your key\n2. Execute the loader script\n3. Enter key when prompted",
+                            inline=False
                         )
                         await user.send(embed=key_embed)
                         
@@ -171,7 +199,6 @@ end
                                 color=discord.Color.blue(),
                                 timestamp=datetime.datetime.now()
                             )
-                            log_embed.set_footer(text=f"User ID: {user.id}")
                             await channel.send(embed=log_embed)
                         
                         return web.Response(text="Success! Check your Discord DMs for your key and loader script.")
