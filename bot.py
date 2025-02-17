@@ -101,8 +101,10 @@ def save_encrypted_script():
         with open("crystal_hub.json", "w") as f:
             json.dump(script_data, f)
         print("✅ Script saved successfully!")
+        return True
     except Exception as e:
         print("❌ Failed to save script:", str(e))
+        return False
 
 # Call this when bot starts
 save_encrypted_script()
@@ -419,38 +421,21 @@ async def handle_script(request):
 
 async def handle_loader(request):
     try:
-        log_message("LOADER", "🔄 Received loader request")
-        
+        print("📥 Received loader request")
         with open("crystal_hub.json", "r") as f:
             script_data = json.load(f)
-            log_message("LOADER", "📂 Successfully read crystal_hub.json")
-            
-        # Decrypt script
+        
         f = Fernet(encryption_key)
         encrypted = base64.b64decode(script_data["data"])
         script = f.decrypt(encrypted).decode()
-        log_message("LOADER", "🔓 Successfully decrypted script")
         
+        print("✅ Script served successfully")
         return web.json_response({
             "success": True,
             "script": script
         })
-    except FileNotFoundError:
-        log_message("LOADER", "⚠️ Script file not found, attempting to recreate...")
-        if save_encrypted_script():
-            log_message("LOADER", "✅ Script file recreated successfully")
-            return web.json_response({
-                "success": True,
-                "message": "Script regenerated, please try again"
-            })
-        else:
-            log_message("LOADER", "❌ Failed to recreate script file")
-            return web.json_response({
-                "success": False,
-                "message": "Failed to generate script"
-            })
     except Exception as e:
-        log_message("LOADER", "❌ Error in loader endpoint", e)
+        print("❌ Loader error:", str(e))
         return web.json_response({
             "success": False,
             "message": str(e)
@@ -458,7 +443,7 @@ async def handle_loader(request):
 
 async def start_server():
     try:
-        log_message("SERVER", "🚀 Starting server initialization...")
+        print("🚀 Starting server...")
         
         # Add routes
         app.router.add_get('/api/discord/redirect', handle_callback)
@@ -466,37 +451,29 @@ async def start_server():
         app.router.add_post('/api/activate', handle_activate)
         app.router.add_get('/api/script', handle_script)
         app.router.add_get('/api/loader', handle_loader)
-        log_message("SERVER", "✅ Routes configured")
         
-        # Create encrypted script
+        # Create initial script
         if save_encrypted_script():
-            log_message("SERVER", "✅ Initial script encryption successful")
-        else:
-            log_message("SERVER", "❌ Failed to create initial script")
-            return
+            print("✅ Initial script created")
         
-        # Start server
+        # Start web server
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
         await site.start()
-        log_message("SERVER", "✅ Web server started successfully")
+        print("✅ Server started")
         
         # Start expiry checker
         asyncio.create_task(check_expired_keys())
-        log_message("SERVER", "✅ Key expiry checker started")
+        print("✅ Key expiry checker started")
         
     except Exception as e:
-        log_message("SERVER", "❌ Failed to start server", e)
+        print("❌ Server error:", str(e))
         raise e
 
 @bot.event
 async def on_ready():
-    log_message("BOT", f"✅ Logged in as {bot.user}")
-    try:
-        await start_server()
-        log_message("BOT", "✅ Server initialization complete")
-    except Exception as e:
-        log_message("BOT", "❌ Failed to start server", e)
+    print(f"✅ Bot logged in as {bot.user}")
+    await start_server()
 
 bot.run(os.getenv('DISCORD_TOKEN'))
