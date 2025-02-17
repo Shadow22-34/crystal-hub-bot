@@ -19,6 +19,9 @@ load_dotenv()
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
+# Create web app outside of function
+app = web.Application()
+
 async def handle_callback(request):
     try:
         code = request.query.get('code')
@@ -86,14 +89,15 @@ async def handle_callback(request):
         return web.Response(text="An error occurred")
 
 async def start_server():
-    app = web.Application()
+    # Add route to the app
     app.router.add_get('/api/discord/redirect', handle_callback)
+    
+    # Start the server
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.getenv('PORT', 3000))
-    site = web.TCPSite(runner, '0.0.0.0', port)
+    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
     await site.start()
-    print(f"OAuth2 callback server started on port {port}")
+    print(f"OAuth2 callback server started")
 
 @bot.event
 async def on_ready():
