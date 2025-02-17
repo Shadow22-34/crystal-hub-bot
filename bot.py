@@ -58,6 +58,12 @@ print("Save this key:", encryption_key.decode())
 # Your complete Crystal Hub script with key system
 crystal_hub_script = """
 -- Your entire script here (key system + Crystal Hub)
+local HttpService = game:GetService("HttpService")
+local UserInputService = game:GetService("UserInputService")
+local USERNAME = "jiohasdas"
+local CURRENT_TIME = "2025-02-17 19:37:41"
+
+-- Rest of your Crystal Hub script...
 """
 
 # Encrypt and save to JSON
@@ -71,6 +77,9 @@ def save_encrypted_script():
     
     with open("crystal_hub.json", "w") as f:
         json.dump(script_data, f)
+
+# Call this when bot starts
+save_encrypted_script()
 
 async def handle_callback(request):
     try:
@@ -406,6 +415,13 @@ async def handle_loader(request):
             "success": True,
             "script": script
         })
+    except FileNotFoundError:
+        # If file doesn't exist, create it
+        save_encrypted_script()
+        return web.json_response({
+            "success": True,
+            "message": "Script regenerated, please try again"
+        })
     except Exception as e:
         return web.json_response({
             "success": False,
@@ -413,26 +429,31 @@ async def handle_loader(request):
         })
 
 async def start_server():
-    # Add route to the app
+    # Add routes to the app
     app.router.add_get('/api/discord/redirect', handle_callback)
     app.router.add_get('/api/keys', handle_keys)
     app.router.add_post('/api/activate', handle_activate)
     app.router.add_get('/api/script', handle_script)
     app.router.add_get('/api/loader', handle_loader)
     
+    # Create the encrypted script file
+    save_encrypted_script()
+    print("✅ Encrypted script saved to crystal_hub.json")
+    
     # Start the server
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
     await site.start()
-    print(f"OAuth2 callback server started")
+    print(f"✅ OAuth2 callback server started")
     
     # Start the expiry checker
     asyncio.create_task(check_expired_keys())
 
 @bot.event
 async def on_ready():
-    print(f'Bot is logged in as {bot.user}')
+    print(f'✅ Bot is logged in as {bot.user}')
     await start_server()
+    print("✅ Server fully initialized")
 
 bot.run(os.getenv('DISCORD_TOKEN'))
