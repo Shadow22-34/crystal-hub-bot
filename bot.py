@@ -8,12 +8,36 @@ import random
 import datetime
 import os
 from dotenv import load_dotenv
+import json
+import aiofiles
 
 # Update these constants
 CLIENT_ID = "1340636044873302047"
 CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
 REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
 KEY_LOG_CHANNEL_ID = 1340825360769613834
+
+# At the top with your other imports
+KEYS_FILE = "keys.json"
+
+# Initialize keys structure
+keys_data = {
+    "generated": {},  # Store generated keys
+    "activated": {}   # Store activated keys
+}
+
+# Load existing keys if file exists
+try:
+    with open(KEYS_FILE, 'r') as f:
+        keys_data = json.load(f)
+except FileNotFoundError:
+    # Create file if it doesn't exist
+    with open(KEYS_FILE, 'w') as f:
+        json.dump(keys_data, f, indent=4)
+
+async def save_keys():
+    async with aiofiles.open(KEYS_FILE, 'w') as f:
+        await f.write(json.dumps(keys_data, indent=4))
 
 load_dotenv()
 
@@ -54,6 +78,15 @@ async def handle_callback(request):
                 user_id = int(user_data['id'])
                 key = f"CRYSTAL-{random.randint(100000, 999999)}"
                 
+                # Store the generated key
+                keys_data["generated"][key] = {
+                    "user_id": str(user_id),
+                    "username": user_data['username'],
+                    "generated_at": datetime.datetime.now().isoformat(),
+                    "activated": False
+                }
+                await save_keys()
+                
                 user = bot.get_user(user_id)
                 if user:
                     try:
@@ -88,9 +121,13 @@ async def handle_callback(request):
         print(f"Error in callback: {e}")
         return web.Response(text="An error occurred")
 
+async def handle_keys(request):
+    return web.json_response(keys_data)
+
 async def start_server():
     # Add route to the app
     app.router.add_get('/api/discord/redirect', handle_callback)
+    app.router.add_get('/api/keys', handle_keys)
     
     # Start the server
     runner = web.AppRunner(app)
