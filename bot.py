@@ -122,6 +122,52 @@ async def handle_callback(request):
         print(f"Error in callback: {e}")
         return web.Response(text="An error occurred")
 
+@bot.command(name='time')
+async def check_time(ctx):
+    def check(m):
+        return m.author == ctx.author and m.channel == ctx.channel
+
+    await ctx.send("Please enter the key you want to check:")
+    
+    try:
+        key_msg = await bot.wait_for('message', check=check, timeout=30.0)
+        key = key_msg.content
+        
+        if key in keys_data["generated"]:
+            key_data = keys_data["generated"][key]
+            
+            if key_data["activated"]:
+                now = datetime.datetime.now()
+                expires_at = datetime.datetime.fromisoformat(key_data["expires_at"])
+                days_remaining = (expires_at - now).days
+                hours_remaining = ((expires_at - now).seconds // 3600)
+                
+                if now > expires_at:
+                    embed = discord.Embed(
+                        title="Key Status",
+                        description=f"Key: `{key}`\nStatus: Expired",
+                        color=discord.Color.red()
+                    )
+                else:
+                    embed = discord.Embed(
+                        title="Key Status",
+                        description=f"Key: `{key}`\nStatus: Active\nTime Remaining: {days_remaining} days and {hours_remaining} hours",
+                        color=discord.Color.green()
+                    )
+            else:
+                embed = discord.Embed(
+                    title="Key Status",
+                    description=f"Key: `{key}`\nStatus: Not Activated",
+                    color=discord.Color.yellow()
+                )
+            
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("Invalid key!")
+            
+    except asyncio.TimeoutError:
+        await ctx.send("Time's up! Please try again.")
+
 async def handle_activate(request):
     try:
         data = await request.json()
@@ -135,8 +181,18 @@ async def handle_activate(request):
                 keys_data["generated"][key]["activated_at"] = now.isoformat()
                 keys_data["generated"][key]["expires_at"] = (now + timedelta(days=7)).isoformat()
                 
+                # Calculate time remaining
+                expires_at = datetime.datetime.fromisoformat(keys_data["generated"][key]["expires_at"])
+                days_remaining = (expires_at - now).days
+                
+                keys_data["generated"][key]["days_remaining"] = days_remaining
                 await save_keys()
-                return web.json_response({"success": True, "message": "Key activated for 7 days"})
+                
+                return web.json_response({
+                    "success": True, 
+                    "message": "Key activated for 7 days",
+                    "days_remaining": days_remaining
+                })
             else:
                 return web.json_response({"success": False, "message": "Key already activated"})
         return web.json_response({"success": False, "message": "Invalid key"})
@@ -147,20 +203,18 @@ async def check_expired_keys():
     while True:
         now = datetime.datetime.now()
         for key in keys_data["generated"]:
-            if keys_data["generated"][key]["activated"]:
-                expires_at = datetime.datetime.fromisoformat(keys_data["generated"][key]["expires_at"])
+            key_data = keys_data["generated"][key]
+            if key_data["activated"]:
+                expires_at = datetime.datetime.fromisoformat(key_data["expires_at"])
+                key_data["days_remaining"] = (expires_at - now).days
                 if now > expires_at:
-                    keys_data["generated"][key]["activated"] = False
-                    keys_data["generated"][key]["expired"] = True
+                    key_data["activated"] = False
+                    key_data["expired"] = True
         await save_keys()
         await asyncio.sleep(3600)  # Check every hour
 
 async def handle_keys(request):
     now = datetime.datetime.now()
-    response_data = {
-        "generated": {},
-        "activated": {}
-    }
     
     for key, data in keys_data["generated"].items():
         if data["activated"]:
@@ -169,9 +223,15 @@ async def handle_keys(request):
             if now > expires_at:
                 data["activated"] = False
                 data["expired"] = True
-        response_data["generated"][key] = data
-    
-    return web.json_response(response_data)
+        
+        # Always include activation status
+        if "activated" not in data:
+            data["activated"] = False
+        if "expired" not in data:
+            data["expired"] = False
+            
+    await save_keys()
+    return web.json_response(keys_data)
 
 async def start_server():
     # Add route to the app
