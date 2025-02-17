@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # Update these constants
 CLIENT_ID = "1340636044873302047"
 CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
-REDIRECT_URI = "https://crystal-hub-bot-production.up.railway.app/api/discord/redirect"
+REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
 KEY_LOG_CHANNEL_ID = 1340825360769613834
 
 load_dotenv()
@@ -100,4 +100,4 @@ async def on_ready():
     print(f'Bot is logged in as {bot.user}')
     await start_server()
 
-bot.run(os.getenv('DISCORD_TOKEN'))
+bot.run(os.getenv('MTM0MDYzNjA0NDg3MzMwMjA0Nw.GoPoAT.VzvaSafo9LO8h0ku3wHd-N_-diMTvB3ZyYXtSE'))
