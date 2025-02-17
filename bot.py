@@ -55,28 +55,56 @@ app = web.Application()
 encryption_key = Fernet.generate_key()
 print("Save this key:", encryption_key.decode())
 
+# Add better logging
+def log_message(category, message, error=None):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"[{timestamp}] [{category}] {message}")
+    if error:
+        print(f"[{timestamp}] [{category}] ERROR: {str(error)}")
+
 # Your complete Crystal Hub script with key system
 crystal_hub_script = """
--- Your entire script here (key system + Crystal Hub)
+-- Initial setup
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
-local USERNAME = "jiohasdas"
-local CURRENT_TIME = "2025-02-17 19:37:41"
+local USERNAME = game:GetService("Players").LocalPlayer.Name
+local CURRENT_TIME = os.date("%Y-%m-%d %H:%M:%S")
+
+-- Debug logging
+local function log(category, message, ...)
+    print(string.format("[%s] [%s] %s", CURRENT_TIME, category, string.format(message, ...)))
+end
+
+log("INIT", "Starting Crystal Scripts Key System")
+
+-- Load UI Library
+local lib = loadstring(game:HttpGet('https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/Vape.txt'))()
+local win = lib:Window("Crystal Scripts - Key System", Color3.fromRGB(255, 134, 236), Enum.KeyCode.RightControl)
+local verifyTab = win:Tab("Key System")
 
 -- Rest of your Crystal Hub script...
-"""
+""" # Paste your ENTIRE Crystal Hub script here
 
-# Encrypt and save to JSON
+# Encrypt and save to JSON with better logging
 def save_encrypted_script():
-    f = Fernet(encryption_key)
-    encrypted = f.encrypt(crystal_hub_script.encode())
-    
-    script_data = {
-        "data": base64.b64encode(encrypted).decode()
-    }
-    
-    with open("crystal_hub.json", "w") as f:
-        json.dump(script_data, f)
+    try:
+        log_message("ENCRYPT", "Starting script encryption...")
+        
+        f = Fernet(encryption_key)
+        encrypted = f.encrypt(crystal_hub_script.encode())
+        
+        script_data = {
+            "data": base64.b64encode(encrypted).decode()
+        }
+        
+        with open("crystal_hub.json", "w") as f:
+            json.dump(script_data, f)
+            
+        log_message("ENCRYPT", "✅ Script successfully encrypted and saved!")
+        return True
+    except Exception as e:
+        log_message("ENCRYPT", "❌ Failed to encrypt script", e)
+        return False
 
 # Call this when bot starts
 save_encrypted_script()
@@ -403,57 +431,84 @@ async def handle_script(request):
 
 async def handle_loader(request):
     try:
+        log_message("LOADER", "🔄 Received loader request")
+        
         with open("crystal_hub.json", "r") as f:
             script_data = json.load(f)
+            log_message("LOADER", "📂 Successfully read crystal_hub.json")
             
         # Decrypt script
         f = Fernet(encryption_key)
         encrypted = base64.b64decode(script_data["data"])
         script = f.decrypt(encrypted).decode()
+        log_message("LOADER", "🔓 Successfully decrypted script")
         
         return web.json_response({
             "success": True,
             "script": script
         })
     except FileNotFoundError:
-        # If file doesn't exist, create it
-        save_encrypted_script()
-        return web.json_response({
-            "success": True,
-            "message": "Script regenerated, please try again"
-        })
+        log_message("LOADER", "⚠️ Script file not found, attempting to recreate...")
+        if save_encrypted_script():
+            log_message("LOADER", "✅ Script file recreated successfully")
+            return web.json_response({
+                "success": True,
+                "message": "Script regenerated, please try again"
+            })
+        else:
+            log_message("LOADER", "❌ Failed to recreate script file")
+            return web.json_response({
+                "success": False,
+                "message": "Failed to generate script"
+            })
     except Exception as e:
+        log_message("LOADER", "❌ Error in loader endpoint", e)
         return web.json_response({
             "success": False,
             "message": str(e)
         })
 
 async def start_server():
-    # Add routes to the app
-    app.router.add_get('/api/discord/redirect', handle_callback)
-    app.router.add_get('/api/keys', handle_keys)
-    app.router.add_post('/api/activate', handle_activate)
-    app.router.add_get('/api/script', handle_script)
-    app.router.add_get('/api/loader', handle_loader)
-    
-    # Create the encrypted script file
-    save_encrypted_script()
-    print("✅ Encrypted script saved to crystal_hub.json")
-    
-    # Start the server
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
-    await site.start()
-    print(f"✅ OAuth2 callback server started")
-    
-    # Start the expiry checker
-    asyncio.create_task(check_expired_keys())
+    try:
+        log_message("SERVER", "🚀 Starting server initialization...")
+        
+        # Add routes
+        app.router.add_get('/api/discord/redirect', handle_callback)
+        app.router.add_get('/api/keys', handle_keys)
+        app.router.add_post('/api/activate', handle_activate)
+        app.router.add_get('/api/script', handle_script)
+        app.router.add_get('/api/loader', handle_loader)
+        log_message("SERVER", "✅ Routes configured")
+        
+        # Create encrypted script
+        if save_encrypted_script():
+            log_message("SERVER", "✅ Initial script encryption successful")
+        else:
+            log_message("SERVER", "❌ Failed to create initial script")
+            return
+        
+        # Start server
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
+        await site.start()
+        log_message("SERVER", "✅ Web server started successfully")
+        
+        # Start expiry checker
+        asyncio.create_task(check_expired_keys())
+        log_message("SERVER", "✅ Key expiry checker started")
+        
+    except Exception as e:
+        log_message("SERVER", "❌ Failed to start server", e)
+        raise e
 
 @bot.event
 async def on_ready():
-    print(f'✅ Bot is logged in as {bot.user}')
-    await start_server()
-    print("✅ Server fully initialized")
+    log_message("BOT", f"✅ Logged in as {bot.user}")
+    try:
+        await start_server()
+        log_message("BOT", "✅ Server initialization complete")
+    except Exception as e:
+        log_message("BOT", "❌ Failed to start server", e)
 
 bot.run(os.getenv('DISCORD_TOKEN'))
