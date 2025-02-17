@@ -79,12 +79,15 @@ async def handle_callback(request):
                 user_id = int(user_data['id'])
                 key = f"CRYSTAL-{random.randint(100000, 999999)}"
                 
-                # Store the generated key
+                # Auto-activate the key when generated
                 keys_data["generated"][key] = {
                     "user_id": str(user_id),
                     "username": user_data['username'],
                     "generated_at": datetime.datetime.now().isoformat(),
-                    "activated": False
+                    "activated": True,
+                    "activated_at": datetime.datetime.now().isoformat(),
+                    "expires_at": (datetime.datetime.now() + timedelta(days=7)).isoformat(),
+                    "days_remaining": 7
                 }
                 await save_keys()
                 
@@ -124,49 +127,85 @@ async def handle_callback(request):
 
 @bot.command(name='time')
 async def check_time(ctx):
+    # Create initial embed
+    initial_embed = discord.Embed(
+        title="🔮 Crystal Hub Key Verification",
+        description="Please enter your Crystal Hub key to check its status...",
+        color=discord.Color.from_rgb(147, 112, 219)
+    )
+    initial_embed.set_thumbnail(url="https://i.imgur.com/YourLogo.png")
+    initial_embed.add_field(name="Instructions", value="Type your key in the chat", inline=False)
+    initial_embed.set_footer(text="Crystal Hub Premium | Automatic Key System", icon_url="https://i.imgur.com/YourIcon.png")
+    
+    await ctx.send(embed=initial_embed)
+    
     def check(m):
         return m.author == ctx.author and m.channel == ctx.channel
 
-    await ctx.send("Please enter the key you want to check:")
-    
     try:
         key_msg = await bot.wait_for('message', check=check, timeout=30.0)
         key = key_msg.content
         
         if key in keys_data["generated"]:
             key_data = keys_data["generated"][key]
+            now = datetime.datetime.now()
+            
+            status_embed = discord.Embed(color=discord.Color.from_rgb(147, 112, 219))
+            status_embed.set_author(name="Crystal Hub Premium", icon_url="https://i.imgur.com/YourIcon.png")
             
             if key_data["activated"]:
-                now = datetime.datetime.now()
                 expires_at = datetime.datetime.fromisoformat(key_data["expires_at"])
-                days_remaining = (expires_at - now).days
-                hours_remaining = ((expires_at - now).seconds // 3600)
+                time_remaining = expires_at - now
+                
+                days = time_remaining.days
+                hours = time_remaining.seconds // 3600
+                minutes = (time_remaining.seconds % 3600) // 60
                 
                 if now > expires_at:
-                    embed = discord.Embed(
-                        title="Key Status",
-                        description=f"Key: `{key}`\nStatus: Expired",
-                        color=discord.Color.red()
-                    )
+                    status_embed.title = "❌ Key Expired"
+                    status_embed.description = "This key has expired. Please contact support for assistance."
+                    status_embed.color = discord.Color.red()
                 else:
-                    embed = discord.Embed(
-                        title="Key Status",
-                        description=f"Key: `{key}`\nStatus: Active\nTime Remaining: {days_remaining} days and {hours_remaining} hours",
-                        color=discord.Color.green()
+                    status_embed.title = "✅ Premium Key Active"
+                    status_embed.add_field(
+                        name="Time Remaining",
+                        value=f"```\n{days}d {hours}h {minutes}m```",
+                        inline=False
+                    )
+                    status_embed.add_field(
+                        name="Expiration",
+                        value=f"<t:{int(expires_at.timestamp())}:F>",
+                        inline=False
                     )
             else:
-                embed = discord.Embed(
-                    title="Key Status",
-                    description=f"Key: `{key}`\nStatus: Not Activated",
-                    color=discord.Color.yellow()
-                )
+                status_embed.title = "⚠️ Key Not Activated"
+                status_embed.description = "This key has not been activated yet. Launch Crystal Hub to activate."
+                status_embed.color = discord.Color.yellow()
             
-            await ctx.send(embed=embed)
+            status_embed.add_field(name="Key", value=f"```{key}```", inline=False)
+            status_embed.add_field(
+                name="Owner",
+                value=f"<@{key_data['user_id']}>",
+                inline=True
+            )
+            status_embed.set_footer(text="Crystal Hub Premium • Premium Key System")
+            
+            await ctx.send(embed=status_embed)
         else:
-            await ctx.send("Invalid key!")
+            error_embed = discord.Embed(
+                title="❌ Invalid Key",
+                description="The key you entered does not exist in our database.",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=error_embed)
             
     except asyncio.TimeoutError:
-        await ctx.send("Time's up! Please try again.")
+        timeout_embed = discord.Embed(
+            title="⏰ Time's Up!",
+            description="Key verification timed out. Please try again.",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=timeout_embed)
 
 async def handle_activate(request):
     try:
