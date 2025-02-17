@@ -62,57 +62,256 @@ def log_message(category, message, error=None):
     if error:
         print(f"[{timestamp}] [{category}] ERROR: {str(error)}")
 
-# Store the EXACT Crystal Hub script
+# Your complete Crystal Hub script - EXACTLY as provided
 crystal_hub_script = """
 local HttpService = game:GetService("HttpService")
 local UserInputService = game:GetService("UserInputService")
-local USERNAME = game:GetService("Players").LocalPlayer.Name
-local CURRENT_TIME = os.date("%Y-%m-%d %H:%M:%S")
+local USERNAME = "jiohasdas"
+local CURRENT_TIME = "2025-02-17 19:37:41"
 
 local function log(category, message, ...)
-    print(string.format("[%s] [%s] %s", CURRENT_TIME, category, string.format(message, ...)))
+    print(string.format("[%s] [%s] %s", CURRENT_TIME, category, string.format(message, ...))) 
 end
 
 log("INIT", "Starting Crystal Scripts Key System")
 
-local lib = loadstring(game:HttpGet('https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/Vape.txt'))()
-local win = lib:Window("Crystal Scripts - Key System", Color3.fromRGB(255, 134, 236), Enum.KeyCode.RightControl)
-local verifyTab = win:Tab("Key System")
+local lib, win
+local success, result = pcall(function()
+    lib = loadstring(game:HttpGet('https://raw.githubusercontent.com/dawid-scripts/UI-Libs/main/Vape.txt'))()
+    win = lib:Window("Crystal Scripts - Key System", Color3.fromRGB(255, 134, 236), Enum.KeyCode.RightControl)
+    return true
+end)
 
--- [PASTE YOUR ENTIRE CRYSTAL HUB SCRIPT HERE, EXACTLY AS IS]
+if not success then
+    warn("Failed to load UI Library:", result)
+    return
+end
+
+local verifyTab = win:Tab("Key System")
+local request = syn and syn.request or http and http.request or http_request or request
+log("HTTP", "Request method initialized")
+
+local function autoFixKey(key)
+    log("AUTOFIX", "Raw key input: %s", key)
+    key = key:gsub("%s+", "")
+    key = key:gsub("[^%w%-]", "")
+    key = key:upper()
+    
+    if not key:match("^CRYSTAL%-") then
+        local numbers = key:match("(%d+)")
+        if numbers then
+            key = "CRYSTAL-" .. numbers
+        end
+    end
+    
+    log("AUTOFIX", "Fixed key: %s", key)
+    return key
+end
+
+local statusLabel = verifyTab:Label("Welcome to Crystal Scripts")
+_G.CurrentKey = ""
+local keyDisplay = verifyTab:Label("Current Key: None")
+
+local function updateKeyDisplay()
+    if keyDisplay then
+        keyDisplay:set("Current Key: " .. (_G.CurrentKey ~= "" and _G.CurrentKey or "None"))
+    end
+end
+
+local function checkKey(key)
+    log("VERIFY", "Starting key verification for: %s", key)
+    
+    local response = request({
+        Url = "https://crystal-hub-bot.onrender.com/api/keys",
+        Method = "GET"
+    })
+    
+    if response.StatusCode == 200 then
+        local success, keysData = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        
+        if success and keysData.generated[key] then
+            local keyData = keysData.generated[key]
+            
+            if keyData.expired then
+                return false, "Key has expired"
+            end
+            
+            if not keyData.activated then
+                local activateResponse = request({
+                    Url = "https://crystal-hub-bot.onrender.com/api/activate",
+                    Method = "POST",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    },
+                    Body = HttpService:JSONEncode({key = key})
+                })
+                
+                if activateResponse.StatusCode == 200 then
+                    return true, "Key activated for 7 days"
+                end
+            else
+                return true, string.format("Key active (%d days remaining)", keyData.days_remaining)
+            end
+        end
+    end
+    return false, "Invalid key"
+end
+
+local function submitKey()
+    if _G.CurrentKey == "" then
+        if statusLabel then
+            statusLabel:set("❌ No key found!")
+        end
+        return
+    end
+    
+    log("SUBMIT", "Submitting key: %s", _G.CurrentKey)
+    if statusLabel then
+        statusLabel:set("⌛ Verifying key...")
+    end
+    
+    local success, message = checkKey(_G.CurrentKey)
+    log("SUBMIT", "Verification result: " .. tostring(success))
+    
+    if success then
+        if statusLabel then
+            statusLabel:set("✅ " .. message)
+        end
+        
+        print("\\n=== SUCCESSFUL KEY ENTRY ===")
+        print("Time:", CURRENT_TIME)
+        print("User:", USERNAME)
+        print("Key:", _G.CurrentKey)
+        print("Status: CORRECT")
+        print("===========================\\n")
+        
+        task.wait(1)
+        
+        for _, v in pairs(game:GetService("CoreGui"):GetChildren()) do
+            if v:IsA("ScreenGui") and (v.Name:match("Crystal") or v.Name:match("Vape")) then
+                v.Enabled = false
+                for _, c in pairs(v:GetDescendants()) do
+                    if c:IsA("Frame") or c:IsA("TextLabel") or c:IsA("TextButton") or c:IsA("ImageLabel") then
+                        c.Visible = false
+                    end
+                end
+            end
+        end
+        
+        _G.CurrentKey = nil
+        win = nil
+        lib = nil
+        verifyTab = nil
+        statusLabel = nil
+        keyDisplay = nil
+        
+        task.wait(0.5)
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/jiohasdas/CRYSTAL-HUB-SCRIPT/refs/heads/main/BASKETBALL%20LEGENDS"))()
+    else
+        if statusLabel then
+            statusLabel:set("❌ " .. message)
+            task.wait(2)
+            statusLabel:set("Please try another key")
+        end
+    end
+end
+
+local function autoPasteAndFix()
+    local success, clipboard = pcall(function()
+        return getclipboard()
+    end)
+    
+    if success and clipboard and clipboard ~= "" then
+        log("AUTOPASTE", "Got clipboard content")
+        _G.CurrentKey = autoFixKey(clipboard)
+        updateKeyDisplay()
+        if statusLabel then
+            statusLabel:set("✅ Key auto-pasted and fixed!")
+        end
+        return true
+    end
+    return false
+end
+
+verifyTab:Button("📋 Auto-Paste & Fix Key", function()
+    if not autoPasteAndFix() then
+        if statusLabel then
+            statusLabel:set("❌ No valid key in clipboard!")
+        end
+    end
+end)
+
+verifyTab:Button("🔑 Submit Key", function()
+    submitKey()
+end)
+
+verifyTab:Label("─────────────────────────────")
+verifyTab:Label("System Information:")
+verifyTab:Label("Time (UTC): " .. CURRENT_TIME)
+verifyTab:Label("User: " .. USERNAME)
+verifyTab:Label("─────────────────────────────")
+verifyTab:Label("How to use:")
+verifyTab:Label("1. Copy your key from Discord")
+verifyTab:Label("2. Click 'Auto-Paste & Fix Key'")
+verifyTab:Label("3. Click 'Submit Key' to verify")
+verifyTab:Label("─────────────────────────────")
+
+verifyTab:Button("🌐 Copy Discord Invite", function()
+    setclipboard("https://discord.gg/your-invite-here")
+    if statusLabel then
+        statusLabel:set("✅ Discord invite copied!")
+        task.wait(2)
+        statusLabel:set("Welcome to Crystal Scripts")
+    end
+end)
+
+local keySystemStatus = verifyTab:Label("Checking system status...")
+
+local testResponse = request({
+    Url = "https://crystal-hub-bot.onrender.com/api/keys",
+    Method = "GET"
+})
+
+if testResponse and testResponse.StatusCode == 200 then
+    keySystemStatus:set("✅ System Online")
+else
+    keySystemStatus:set("❌ System Offline")
+end
+
+verifyTab:Label("─────────────────────────────")
+log("INIT", "Key system initialization complete")
+
+task.spawn(function()
+    task.wait(1)
+    autoPasteAndFix()
+end)
 """
 
-# Simple JSON storage - no fancy encryption needed
-def save_script():
-    script_data = {
-        "script": crystal_hub_script
-    }
-    with open("crystal_hub.json", "w") as f:
-        json.dump(script_data, f)
-    print("✅ Script saved to JSON")
-
-# Simple loader endpoint
-async def handle_loader(request):
+# Encrypt and save to JSON with better logging
+def save_encrypted_script():
     try:
-        with open("crystal_hub.json", "r") as f:
-            data = json.load(f)
-        return web.json_response({
-            "success": True,
-            "script": data["script"]
-        })
+        log_message("ENCRYPT", "Starting script encryption...")
+        
+        f = Fernet(encryption_key)
+        encrypted = f.encrypt(crystal_hub_script.encode())
+        
+        script_data = {
+            "data": base64.b64encode(encrypted).decode()
+        }
+        
+        with open("crystal_hub.json", "w") as f:
+            json.dump(script_data, f)
+            
+        log_message("ENCRYPT", "✅ Script successfully encrypted and saved!")
+        return True
     except Exception as e:
-        print("❌ Error:", e)
-        return web.json_response({
-            "success": False,
-            "message": str(e)
-        })
+        log_message("ENCRYPT", "❌ Failed to encrypt script", e)
+        return False
 
-# Create JSON when bot starts
-@bot.event
-async def on_ready():
-    print(f'✅ Bot is logged in as {bot.user}')
-    save_script()
-    print("✅ Ready to serve script")
+# Call this when bot starts
+save_encrypted_script()
 
 async def handle_callback(request):
     try:
@@ -434,6 +633,45 @@ async def handle_script(request):
             "message": str(e)
         })
 
+async def handle_loader(request):
+    try:
+        log_message("LOADER", "🔄 Received loader request")
+        
+        with open("crystal_hub.json", "r") as f:
+            script_data = json.load(f)
+            log_message("LOADER", "📂 Successfully read crystal_hub.json")
+            
+        # Decrypt script
+        f = Fernet(encryption_key)
+        encrypted = base64.b64decode(script_data["data"])
+        script = f.decrypt(encrypted).decode()
+        log_message("LOADER", "🔓 Successfully decrypted script")
+        
+        return web.json_response({
+            "success": True,
+            "script": script
+        })
+    except FileNotFoundError:
+        log_message("LOADER", "⚠️ Script file not found, attempting to recreate...")
+        if save_encrypted_script():
+            log_message("LOADER", "✅ Script file recreated successfully")
+            return web.json_response({
+                "success": True,
+                "message": "Script regenerated, please try again"
+            })
+        else:
+            log_message("LOADER", "❌ Failed to recreate script file")
+            return web.json_response({
+                "success": False,
+                "message": "Failed to generate script"
+            })
+    except Exception as e:
+        log_message("LOADER", "❌ Error in loader endpoint", e)
+        return web.json_response({
+            "success": False,
+            "message": str(e)
+        })
+
 async def start_server():
     try:
         log_message("SERVER", "🚀 Starting server initialization...")
@@ -445,6 +683,13 @@ async def start_server():
         app.router.add_get('/api/script', handle_script)
         app.router.add_get('/api/loader', handle_loader)
         log_message("SERVER", "✅ Routes configured")
+        
+        # Create encrypted script
+        if save_encrypted_script():
+            log_message("SERVER", "✅ Initial script encryption successful")
+        else:
+            log_message("SERVER", "❌ Failed to create initial script")
+            return
         
         # Start server
         runner = web.AppRunner(app)
