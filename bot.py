@@ -84,7 +84,37 @@ local success, result = pcall(function()
     return true
 end)
 
--- YOUR ENTIRE CRYSTAL HUB SCRIPT HERE (EXACTLY AS IS)
+if not success then
+    warn("Failed to load UI Library:", result)
+    return
+end
+
+local verifyTab = win:Tab("Key System")
+local request = syn and syn.request or http and http.request or http_request or request
+log("HTTP", "Request method initialized")
+
+local function autoFixKey(key)
+    log("AUTOFIX", "Raw key input: %s", key)
+    key = key:gsub("%s+", "")
+    key = key:gsub("[^%w%-]", "")
+    key = key:upper()
+    
+    if not key:match("^CRYSTAL%-") then
+        local numbers = key:match("(%d+)")
+        if numbers then
+            key = "CRYSTAL-" .. numbers
+        end
+    end
+    
+    log("AUTOFIX", "Fixed key: %s", key)
+    return key
+end
+
+local statusLabel = verifyTab:Label("Welcome to Crystal Scripts")
+_G.CurrentKey = ""
+local keyDisplay = verifyTab:Label("Current Key: None")
+
+-- REST OF YOUR CRYSTAL HUB SCRIPT HERE
 """
 
 # Encrypt and save to JSON with better logging
@@ -101,8 +131,10 @@ def save_encrypted_script():
         with open("crystal_hub.json", "w") as f:
             json.dump(script_data, f)
         print("✅ Script saved successfully!")
+        return True
     except Exception as e:
         print("❌ Failed to save script:", str(e))
+        return False
 
 # Call this when bot starts
 save_encrypted_script()
@@ -419,38 +451,21 @@ async def handle_script(request):
 
 async def handle_loader(request):
     try:
-        log_message("LOADER", "🔄 Received loader request")
-        
+        print("📥 Received loader request")
         with open("crystal_hub.json", "r") as f:
             script_data = json.load(f)
-            log_message("LOADER", "📂 Successfully read crystal_hub.json")
-            
-        # Decrypt script
+        
         f = Fernet(encryption_key)
         encrypted = base64.b64decode(script_data["data"])
         script = f.decrypt(encrypted).decode()
-        log_message("LOADER", "🔓 Successfully decrypted script")
         
+        print("✅ Script served successfully")
         return web.json_response({
             "success": True,
             "script": script
         })
-    except FileNotFoundError:
-        log_message("LOADER", "⚠️ Script file not found, attempting to recreate...")
-        if save_encrypted_script():
-            log_message("LOADER", "✅ Script file recreated successfully")
-            return web.json_response({
-                "success": True,
-                "message": "Script regenerated, please try again"
-            })
-        else:
-            log_message("LOADER", "❌ Failed to recreate script file")
-            return web.json_response({
-                "success": False,
-                "message": "Failed to generate script"
-            })
     except Exception as e:
-        log_message("LOADER", "❌ Error in loader endpoint", e)
+        print("❌ Loader error:", str(e))
         return web.json_response({
             "success": False,
             "message": str(e)
