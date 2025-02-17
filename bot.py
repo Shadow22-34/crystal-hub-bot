@@ -10,6 +10,7 @@ import os
 from dotenv import load_dotenv
 import json
 import aiofiles
+from datetime import timedelta
 
 # Update these constants
 CLIENT_ID = "1340636044873302047"
@@ -121,13 +122,62 @@ async def handle_callback(request):
         print(f"Error in callback: {e}")
         return web.Response(text="An error occurred")
 
+async def handle_activate(request):
+    try:
+        data = await request.json()
+        key = data.get('key')
+        
+        if key in keys_data["generated"]:
+            if not keys_data["generated"][key]["activated"]:
+                # Set activation time and expiry
+                now = datetime.datetime.now()
+                keys_data["generated"][key]["activated"] = True
+                keys_data["generated"][key]["activated_at"] = now.isoformat()
+                keys_data["generated"][key]["expires_at"] = (now + timedelta(days=7)).isoformat()
+                
+                await save_keys()
+                return web.json_response({"success": True, "message": "Key activated for 7 days"})
+            else:
+                return web.json_response({"success": False, "message": "Key already activated"})
+        return web.json_response({"success": False, "message": "Invalid key"})
+    except Exception as e:
+        return web.json_response({"success": False, "message": str(e)})
+
+async def check_expired_keys():
+    while True:
+        now = datetime.datetime.now()
+        for key in keys_data["generated"]:
+            if keys_data["generated"][key]["activated"]:
+                expires_at = datetime.datetime.fromisoformat(keys_data["generated"][key]["expires_at"])
+                if now > expires_at:
+                    keys_data["generated"][key]["activated"] = False
+                    keys_data["generated"][key]["expired"] = True
+        await save_keys()
+        await asyncio.sleep(3600)  # Check every hour
+
 async def handle_keys(request):
-    return web.json_response(keys_data)
+    now = datetime.datetime.now()
+    response_data = {
+        "generated": {},
+        "activated": {}
+    }
+    
+    for key, data in keys_data["generated"].items():
+        if data["activated"]:
+            expires_at = datetime.datetime.fromisoformat(data["expires_at"])
+            data["days_remaining"] = (expires_at - now).days
+            if now > expires_at:
+                data["activated"] = False
+                data["expired"] = True
+        response_data["generated"][key] = data
+    
+    return web.json_response(response_data)
 
 async def start_server():
     # Add route to the app
     app.router.add_get('/api/discord/redirect', handle_callback)
     app.router.add_get('/api/keys', handle_keys)
+    app.router.add_post('/api/activate', handle_activate)
     
     # Start the server
     runner = web.AppRunner(app)
@@ -135,6 +185,9 @@ async def start_server():
     site = web.TCPSite(runner, '0.0.0.0', int(os.getenv('PORT', 10000)))
     await site.start()
     print(f"OAuth2 callback server started")
+    
+    # Start the expiry checker
+    asyncio.create_task(check_expired_keys())
 
 @bot.event
 async def on_ready():
