@@ -11,6 +11,10 @@ from dotenv import load_dotenv
 import json
 import aiofiles
 from datetime import timedelta
+import base64
+import cryptography
+from cryptography.fernet import Fernet
+import io
 
 # Update these constants
 CLIENT_ID = "1340636044873302047"
@@ -46,6 +50,27 @@ bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
 
 # Create web app outside of function
 app = web.Application()
+
+# Generate a key (do this once and save it)
+encryption_key = Fernet.generate_key()
+print("Save this key:", encryption_key.decode())
+
+# Your complete Crystal Hub script with key system
+crystal_hub_script = """
+-- Your entire script here (key system + Crystal Hub)
+"""
+
+# Encrypt and save to JSON
+def save_encrypted_script():
+    f = Fernet(encryption_key)
+    encrypted = f.encrypt(crystal_hub_script.encode())
+    
+    script_data = {
+        "data": base64.b64encode(encrypted).decode()
+    }
+    
+    with open("crystal_hub.json", "w") as f:
+        json.dump(script_data, f)
 
 async def handle_callback(request):
     try:
@@ -91,16 +116,53 @@ async def handle_callback(request):
                 }
                 await save_keys()
                 
+                # Create loader script with their key
+                loader_script = f"""
+-- Crystal Hub Loader
+print("💎 Loading Crystal Hub...")
+
+local HttpService = game:GetService("HttpService")
+
+local success, response = pcall(function()
+    return HttpService:GetAsync("https://crystal-hub-bot.onrender.com/api/loader")
+end)
+
+if success then
+    local data = HttpService:JSONDecode(response)
+    if data.success then
+        loadstring(data.script)()
+    else
+        warn("Failed to load Crystal Hub:", data.message)
+    end
+else
+    warn("Failed to contact server:", response)
+end
+"""
+                
                 user = bot.get_user(user_id)
                 if user:
                     try:
-                        user_embed = discord.Embed(
-                            title="Crystal Hub Key",
+                        # Send key embed
+                        key_embed = discord.Embed(
+                            title="🔮 Crystal Hub Key",
                             description=f"Here's your key: `{key}`",
-                            color=discord.Color.green()
+                            color=discord.Color.purple()
                         )
-                        await user.send(embed=user_embed)
+                        await user.send(embed=key_embed)
                         
+                        # Send script embed and file
+                        script_embed = discord.Embed(
+                            title="📜 Crystal Hub Loader",
+                            description="Here's your loader script. Copy and paste it into your executor!",
+                            color=discord.Color.purple()
+                        )
+                        script_file = discord.File(
+                            io.StringIO(loader_script),
+                            filename="crystal_hub_loader.lua"
+                        )
+                        await user.send(embed=script_embed, file=script_file)
+                        
+                        # Log to channel
                         channel = bot.get_channel(KEY_LOG_CHANNEL_ID)
                         if channel:
                             log_embed = discord.Embed(
@@ -110,12 +172,9 @@ async def handle_callback(request):
                                 timestamp=datetime.datetime.now()
                             )
                             log_embed.set_footer(text=f"User ID: {user.id}")
-                            await channel.send(f"🔑 New key generated for {user.mention}", embed=log_embed)
-                            print(f"Key sent to channel for user {user.name}")
-                        else:
-                            print(f"Could not find channel with ID {KEY_LOG_CHANNEL_ID}")
-                            
-                        return web.Response(text="Success! Check your Discord DMs for your key.")
+                            await channel.send(embed=log_embed)
+                        
+                        return web.Response(text="Success! Check your Discord DMs for your key and loader script.")
                     except Exception as e:
                         print(f"Error sending messages: {e}")
                         return web.Response(text="Error sending messages. Please ensure your DMs are open.")
@@ -272,11 +331,67 @@ async def handle_keys(request):
     await save_keys()
     return web.json_response(keys_data)
 
+async def handle_script(request):
+    key = request.query.get('key')
+    
+    if not key or key not in keys_data["generated"]:
+        return web.json_response({
+            "success": False,
+            "message": "Invalid key"
+        })
+        
+    if not keys_data["generated"][key]["activated"]:
+        return web.json_response({
+            "success": False,
+            "message": "Key not activated"
+        })
+    
+    try:
+        with open("script.json", "r") as f:
+            script_data = json.load(f)
+            
+        # Decrypt script
+        f = Fernet(key)
+        encrypted = base64.b64decode(script_data["data"])
+        script = f.decrypt(encrypted).decode()
+        
+        return web.json_response({
+            "success": True,
+            "script": script
+        })
+    except Exception as e:
+        return web.json_response({
+            "success": False,
+            "message": str(e)
+        })
+
+async def handle_loader(request):
+    try:
+        with open("crystal_hub.json", "r") as f:
+            script_data = json.load(f)
+            
+        # Decrypt script
+        f = Fernet(encryption_key)
+        encrypted = base64.b64decode(script_data["data"])
+        script = f.decrypt(encrypted).decode()
+        
+        return web.json_response({
+            "success": True,
+            "script": script
+        })
+    except Exception as e:
+        return web.json_response({
+            "success": False,
+            "message": str(e)
+        })
+
 async def start_server():
     # Add route to the app
     app.router.add_get('/api/discord/redirect', handle_callback)
     app.router.add_get('/api/keys', handle_keys)
     app.router.add_post('/api/activate', handle_activate)
+    app.router.add_get('/api/script', handle_script)
+    app.router.add_get('/api/loader', handle_loader)
     
     # Start the server
     runner = web.AppRunner(app)
