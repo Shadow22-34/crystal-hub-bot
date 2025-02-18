@@ -72,19 +72,18 @@ async def save_keys():
 
 load_dotenv()
 
-# Initialize bot with slash commands
+# Initialize bot with proper command tree
 class CrystalBot(commands.Bot):
     def __init__(self):
-        super().__init__(
-            command_prefix="/",  # Keeping prefix for backup
-            intents=discord.Intents.all(),
-            help_command=None
-        )
-        self.tree = app_commands.CommandTree(self)
-        
-    async def setup_hook(self):
-        await self.tree.sync()  # Sync slash commands
+        intents = discord.Intents.all()
+        super().__init__(command_prefix="/", intents=intents)
 
+    async def setup_hook(self):
+        # Sync commands with Discord
+        await self.tree.sync()
+        print("Command tree synced!")
+
+# Create bot instance
 bot = CrystalBot()
 
 # Create web app outside of function
@@ -1191,16 +1190,39 @@ async def handle_timeout(ctx, error_message: str, timeout: int = 30):
 
 # Slash Commands
 @bot.tree.command(name="setup", description="Initialize Crystal Hub")
+@app_commands.default_permissions(administrator=True)
 async def setup(interaction: discord.Interaction):
+    if server_config["is_setup"]:
+        await interaction.response.send_message("Crystal Hub is already set up!", ephemeral=True)
+        return
+
     try:
-        async with asyncio.timeout(60):  # 60 second timeout
-            # Setup logic here
-            await interaction.response.send_message("Setting up Crystal Hub...", ephemeral=True)
-    except asyncio.TimeoutError:
-        await interaction.followup.send(
-            "Setup timed out! Please try again.",
-            ephemeral=True
+        # Create roles
+        admin_role = await interaction.guild.create_role(
+            name="Crystal Admin",
+            color=discord.Color.red(),
+            hoist=True
         )
+        buyer_role = await interaction.guild.create_role(
+            name="Crystal Premium",
+            color=discord.Color.gold(),
+            hoist=True
+        )
+
+        # Update config
+        server_config.update({
+            "admin_role_id": admin_role.id,
+            "buyer_role_id": buyer_role.id,
+            "is_setup": True
+        })
+        await save_config()
+
+        # Give admin role to command user
+        await interaction.user.add_roles(admin_role)
+        
+        await interaction.response.send_message("✅ Crystal Hub has been set up!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Setup failed: {str(e)}", ephemeral=True)
 
 @bot.tree.command(name="getscript", description="Get your premium script")
 async def getscript(interaction: discord.Interaction):
@@ -1594,10 +1616,11 @@ async def script(interaction: discord.Interaction):
 # Event Handlers
 @bot.event
 async def on_ready():
-    print(f"Bot is ready! Logged in as {bot.user}")
+    print(f"Logged in as {bot.user}")
+    print("------")
     await setup_control_panel(bot.get_channel(server_config["control_channel_id"]))
 
-# Error Handling
+# Error handler
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.CheckFailure):
@@ -1605,5 +1628,6 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     else:
         await interaction.response.send_message(f"❌ An error occurred: {str(error)}", ephemeral=True)
 
-# Run the bot
-bot.run(os.getenv('DISCORD_TOKEN'))
+# Run bot
+if __name__ == "__main__":
+    bot.run('YOUR_BOT_TOKEN')
