@@ -18,6 +18,7 @@ import io
 import hashlib
 import platform
 import uuid
+from discord import app_commands
 
 # Update these constants with your actual Discord IDs
 CLIENT_ID = "1340636044873302047"
@@ -36,7 +37,8 @@ KEYS_FILE = "keys.json"
 # HWID management
 hwid_data = {
     "users": {},  # Store user HWIDs
-    "resets": {}  # Track HWID resets
+    "resets": {},  # Track HWID resets
+    "blacklist": []
 }
 
 try:
@@ -71,7 +73,138 @@ async def save_keys():
 
 load_dotenv()
 
-bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command=None)
+class CrystalBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="/",
+            intents=discord.Intents.all(),
+            help_command=None
+        )
+        
+    async def setup_hook(self):
+        await self.tree.sync()
+
+bot = CrystalBot()
+
+# Command group for admin commands
+admin_group = app_commands.Group(name="admin", description="Admin commands")
+
+@admin_group.command(name="blacklist")
+async def blacklist(interaction: discord.Interaction, user: discord.User):
+    """Blacklists the user from the project"""
+    if user.id in hwid_data["blacklist"]:
+        await interaction.response.send_message("User is already blacklisted!", ephemeral=True)
+        return
+        
+    hwid_data["blacklist"].append(user.id)
+    await save_hwid_data()
+    await interaction.response.send_message(f"Blacklisted {user.mention}", ephemeral=True)
+
+@admin_group.command(name="compensate")
+async def compensate(interaction: discord.Interaction, days: int):
+    """Adds days to everyone's subscription"""
+    for user_id in hwid_data["users"]:
+        if "expiry" in hwid_data["users"][user_id]:
+            current_expiry = datetime.datetime.fromisoformat(hwid_data["users"][user_id]["expiry"])
+            new_expiry = current_expiry + datetime.timedelta(days=days)
+            hwid_data["users"][user_id]["expiry"] = new_expiry.isoformat()
+    
+    await save_hwid_data()
+    await interaction.response.send_message(f"Added {days} days to all users", ephemeral=True)
+
+@admin_group.command(name="force-resethwid")
+async def force_resethwid(interaction: discord.Interaction, user: discord.User):
+    """Force resets a user's HWID ignoring cooldown"""
+    user_id = str(user.id)
+    if user_id not in hwid_data["users"]:
+        await interaction.response.send_message("User has no HWID!", ephemeral=True)
+        return
+        
+    hwid_data["users"][user_id]["hwid"] = None
+    hwid_data["users"][user_id]["resets"] = 0
+    await save_hwid_data()
+    await interaction.response.send_message(f"Reset HWID for {user.mention}", ephemeral=True)
+
+@admin_group.command(name="mass-generate")
+async def mass_generate(interaction: discord.Interaction, amount: int):
+    """Generates multiple keys"""
+    keys = []
+    for _ in range(amount):
+        key = f"CRYSTAL-{random.randint(100000, 999999)}"
+        keys.append(key)
+        # Add to keys database
+        
+    keys_text = "\n".join(keys)
+    await interaction.response.send_message(f"Generated {amount} keys:\n```\n{keys_text}\n```", ephemeral=True)
+
+@admin_group.command(name="mass-whitelist")
+async def mass_whitelist(interaction: discord.Interaction, role: discord.Role):
+    """Whitelists all users with specific role"""
+    count = 0
+    for member in interaction.guild.members:
+        if role in member.roles:
+            user_id = str(member.id)
+            if user_id not in hwid_data["users"]:
+                hwid_data["users"][user_id] = {
+                    "hwid": None,
+                    "resets": 0,
+                    "whitelisted_at": datetime.datetime.now().isoformat()
+                }
+                count += 1
+    
+    await save_hwid_data()
+    await interaction.response.send_message(f"Whitelisted {count} users", ephemeral=True)
+
+# Add the admin group to the bot
+bot.tree.add_command(admin_group)
+
+# User commands
+@bot.tree.command(name="login")
+async def login(interaction: discord.Interaction):
+    """Connects Discord to your Crystal account"""
+    # Implement OAuth2 login logic
+    await interaction.response.send_message("Login system coming soon!", ephemeral=True)
+
+@bot.tree.command(name="logout")
+async def logout(interaction: discord.Interaction):
+    """Disconnects your Crystal account"""
+    # Implement logout logic
+    await interaction.response.send_message("Logout successful!", ephemeral=True)
+
+# Setup command
+@bot.tree.command(name="setup")
+async def setup(interaction: discord.Interaction):
+    """Sets up the Crystal Hub system"""
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("You need administrator permissions!", ephemeral=True)
+        return
+
+    await interaction.response.defer()
+
+    try:
+        # Create roles
+        admin_role = await interaction.guild.create_role(
+            name="Crystal Admin",
+            color=discord.Color.red(),
+            permissions=discord.Permissions(administrator=True)
+        )
+        
+        buyer_role = await interaction.guild.create_role(
+            name="Crystal Premium",
+            color=discord.Color.purple()
+        )
+
+        # Create channels
+        category = await interaction.guild.create_category("CRYSTAL HUB")
+        control_channel = await category.create_text_channel("control-panel")
+        
+        # Set up control panel
+        await setup_control_panel(control_channel)
+        
+        await interaction.followup.send("Setup complete! Check the control panel.", ephemeral=True)
+        
+    except Exception as e:
+        await interaction.followup.send(f"Setup failed: {str(e)}", ephemeral=True)
 
 # Create web app outside of function
 app = web.Application()
