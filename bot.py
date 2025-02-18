@@ -740,11 +740,13 @@ async def on_ready():
     except Exception as e:
         log_message("BOT", "❌ Failed to start server", e)
 
-# Store server configuration
+# Enhanced server configuration
 server_config = {
     "admin_role_id": None,
     "buyer_role_id": None,
     "control_channel_id": None,
+    "blacklist": [],
+    "theme_color": discord.Color.purple().value,
     "is_setup": False
 }
 
@@ -763,135 +765,193 @@ async def save_config():
 async def setup(ctx):
     """Initial setup for Crystal Hub"""
     if not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ You need administrator permissions to run setup!")
+        await ctx.send("❌ You need administrator permissions!")
         return
 
     try:
-        # Welcome message
-        await ctx.send("👋 Welcome to Crystal Hub Setup! Let's configure everything...")
-        
-        # Create roles if they don't exist
+        setup_embed = discord.Embed(
+            title="🚀 Crystal Hub Setup",
+            description="Setting up your premium experience...",
+            color=discord.Color.blue()
+        )
+        status_msg = await ctx.send(embed=setup_embed)
+
+        # Create roles with better styling
         admin_role = await ctx.guild.create_role(
-            name="Crystal Admin",
+            name="💎 Crystal Admin",
             color=discord.Color.red(),
-            permissions=discord.Permissions(administrator=True)
+            permissions=discord.Permissions(administrator=True),
+            hoist=True  # Shows role separately in member list
         )
+        
         buyer_role = await ctx.guild.create_role(
-            name="Crystal Premium",
-            color=discord.Color.purple()
+            name="⭐ Crystal Premium",
+            color=discord.Color.purple(),
+            hoist=True
         )
-        
-        # Save role IDs
-        server_config["admin_role_id"] = admin_role.id
-        server_config["buyer_role_id"] = buyer_role.id
-        
-        # Create control panel channel
+
+        # Create category and channels
+        category = await ctx.guild.create_category(
+            "🌟 CRYSTAL HUB",
+            position=0
+        )
+
+        # Set permissions for category
         overwrites = {
             ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
             buyer_role: discord.PermissionOverwrite(read_messages=True),
             admin_role: discord.PermissionOverwrite(read_messages=True, manage_messages=True)
         }
-        
-        control_channel = await ctx.guild.create_text_channel(
-            'crystal-hub-control',
+
+        # Create organized channels
+        control_channel = await category.create_text_channel(
+            '💫┃control-panel',
             overwrites=overwrites,
             topic="Crystal Hub Premium Control Panel"
         )
         
-        server_config["control_channel_id"] = control_channel.id
-        server_config["is_setup"] = True
-        await save_config()
+        announcements = await category.create_text_channel(
+            '📢┃announcements',
+            overwrites=overwrites
+        )
         
+        support = await category.create_text_channel(
+            '🎫┃support',
+            overwrites=overwrites
+        )
+
+        # Save configuration
+        server_config.update({
+            "admin_role_id": admin_role.id,
+            "buyer_role_id": buyer_role.id,
+            "control_channel_id": control_channel.id,
+            "is_setup": True
+        })
+        await save_config()
+
         # Give admin role to setup person
         await ctx.author.add_roles(admin_role)
-        
-        # Create the control panel
+
+        # Create the premium control panel
         await control_channel.purge(limit=100)
-        
-        # Welcome banner
+
+        # Welcome Banner (Extra Wide)
         welcome_embed = discord.Embed(
-            title="🌟 Crystal Hub Premium",
-            description="Welcome to the exclusive Crystal Hub control panel.\nYour premium experience starts here.",
+            title="",  # Empty title for custom banner
+            description="",
             color=discord.Color.purple()
         )
-        welcome_embed.add_field(
-            name="🔒 Security",
-            value="• HWID Protection\n• Anti-Tamper System\n• 24/7 Monitoring",
-            inline=True
-        )
-        welcome_embed.add_field(
-            name="✨ Features",
-            value="• Instant Script Access\n• Auto-Updates\n• Priority Support",
-            inline=True
-        )
+        welcome_embed.set_image(url="https://your-banner-image.png")  # Add your custom banner
         await control_channel.send(embed=welcome_embed)
-        
-        # Separator
-        separator = discord.Embed(color=discord.Color.purple())
-        separator.set_image(url="https://i.imgur.com/wvbwk6G.png")
-        await control_channel.send(embed=separator)
-        
-        # Status panel
+
+        # Status Dashboard
         status_embed = discord.Embed(
-            title="📊 System Status",
-            color=discord.Color.green()
+            title="🎮 Crystal Hub Dashboard",
+            description="Welcome to your premium control center",
+            color=discord.Color.purple()
         )
         status_embed.add_field(
-            name="🟢 Server Status",
-            value="Operational",
+            name="🔐 Security Status",
+            value="```\n✓ HWID System: Online\n✓ Anti-Tamper: Active\n✓ Encryption: Enabled\n```",
             inline=True
         )
         status_embed.add_field(
-            name="📈 Uptime",
-            value="99.9%",
-            inline=True
-        )
-        status_embed.add_field(
-            name="👥 Active Users",
-            value=f"{len(hwid_data['users'])}",
+            name="📊 Statistics",
+            value=f"```\n• Premium Users: {len(hwid_data['users'])}\n• Uptime: 99.9%\n• Version: 1.0.0\n```",
             inline=True
         )
         await control_channel.send(embed=status_embed)
-        
-        # Control panel
+
+        # Separator
+        await control_channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        # Main Control Panel
         control_embed = discord.Embed(
             title="🎮 Control Panel",
             description="Access your premium features below",
             color=discord.Color.purple()
         )
         control_embed.add_field(
-            name="🔑 Get Script",
-            value="Get your HWID-locked premium script",
-            inline=False
+            name="🔑 Script Access",
+            value="• Get your HWID-locked script\n• Auto-updates included\n• Premium features",
+            inline=True
         )
         control_embed.add_field(
-            name="🔄 Reset HWID",
-            value="Reset your HWID (3 resets maximum)",
-            inline=False
+            name="🔄 HWID Management",
+            value="• View your HWID\n• Reset when needed\n• Security status",
+            inline=True
         )
         control_embed.add_field(
-            name="❓ Need Help?",
-            value="Contact our support team for assistance",
+            name="📱 Quick Actions",
+            value="Click the buttons below to access features",
             inline=False
         )
         await control_channel.send(embed=control_embed, view=ControlPanel())
-        
-        # Success message
-        success_embed = discord.Embed(
-            title="✅ Setup Complete!",
-            description=f"""
-Crystal Hub has been successfully set up!
 
-📍 Control Panel: {control_channel.mention}
-👑 Admin Role: {admin_role.mention}
-💎 Premium Role: {buyer_role.mention}
+        # Information Section
+        info_embed = discord.Embed(
+            title="ℹ️ Information",
+            description="Everything you need to know about Crystal Hub",
+            color=discord.Color.blue()
+        )
+        info_embed.add_field(
+            name="🎮 Supported Games",
+            value="• Basketball Legends\n• More coming soon...",
+            inline=True
+        )
+        info_embed.add_field(
+            name="🔧 Support",
+            value="• 24/7 Support\n• Priority Updates\n• Exclusive Features",
+            inline=True
+        )
+        await control_channel.send(embed=info_embed)
 
-Use `!help` to see available commands.
-            """,
+        # Quick Links
+        links_embed = discord.Embed(
+            title="🔗 Quick Links",
+            description="Important resources at your fingertips",
             color=discord.Color.green()
         )
-        await ctx.send(embed=success_embed)
-        
+        links_embed.add_field(
+            name="📚 Documentation",
+            value="[View Documentation](https://docs.crystalhub.com)",
+            inline=True
+        )
+        links_embed.add_field(
+            name="📢 Announcements",
+            value=f"Check {announcements.mention} for updates",
+            inline=True
+        )
+        links_embed.add_field(
+            name="🎫 Support",
+            value=f"Visit {support.mention} for help",
+            inline=True
+        )
+        await control_channel.send(embed=links_embed)
+
+        # Footer
+        footer_embed = discord.Embed(
+            description="Crystal Hub Premium © 2024 - All rights reserved",
+            color=discord.Color.purple()
+        )
+        await control_channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        await control_channel.send(embed=footer_embed)
+
+        # Update setup status
+        setup_embed.description = "✅ Crystal Hub has been successfully set up!"
+        setup_embed.add_field(
+            name="Channels Created",
+            value=f"📍 Control Panel: {control_channel.mention}\n📢 Announcements: {announcements.mention}\n🎫 Support: {support.mention}",
+            inline=False
+        )
+        setup_embed.add_field(
+            name="Roles Created",
+            value=f"👑 Admin Role: {admin_role.mention}\n💎 Premium Role: {buyer_role.mention}",
+            inline=False
+        )
+        setup_embed.color = discord.Color.green()
+        await status_msg.edit(embed=setup_embed)
+
     except Exception as e:
         error_embed = discord.Embed(
             title="❌ Setup Failed",
@@ -922,47 +982,178 @@ async def givepremium(ctx, user: discord.Member):
     except Exception as e:
         await ctx.send(f"❌ Error: {str(e)}")
 
-# Premium control panel
+# Blacklist management
+async def add_to_blacklist(user_id: int):
+    server_config["blacklist"].append(user_id)
+    await save_config()
+
+async def remove_from_blacklist(user_id: int):
+    if user_id in server_config["blacklist"]:
+        server_config["blacklist"].remove(user_id)
+        await save_config()
+
+# Admin commands
+@bot.command()
+async def blacklist(ctx, user: discord.Member):
+    """Blacklist a user from using Crystal Hub"""
+    if not check_admin(ctx):
+        await ctx.send("❌ You need the Crystal Admin role!")
+        return
+
+    user_id = user.id
+    if user_id in server_config["blacklist"]:
+        await ctx.send("❌ User is already blacklisted!")
+        return
+
+    await add_to_blacklist(user_id)
+    
+    # Remove premium role if they have it
+    if server_config["buyer_role_id"]:
+        buyer_role = ctx.guild.get_role(server_config["buyer_role_id"])
+        if buyer_role in user.roles:
+            await user.remove_roles(buyer_role)
+
+    embed = discord.Embed(
+        title="⛔ User Blacklisted",
+        description=f"{user.mention} has been blacklisted from Crystal Hub",
+        color=discord.Color.red()
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def unblacklist(ctx, user: discord.Member):
+    """Remove a user from the blacklist"""
+    if not check_admin(ctx):
+        await ctx.send("❌ You need the Crystal Admin role!")
+        return
+
+    user_id = user.id
+    if user_id not in server_config["blacklist"]:
+        await ctx.send("❌ User is not blacklisted!")
+        return
+
+    await remove_from_blacklist(user_id)
+    embed = discord.Embed(
+        title="✅ User Unblacklisted",
+        description=f"{user.mention} has been removed from the blacklist",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+async def resetup(ctx):
+    """Reconfigure Crystal Hub setup"""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("❌ You need administrator permissions!")
+        return
+
+    confirm_embed = discord.Embed(
+        title="⚠️ Reset Confirmation",
+        description="This will reset all Crystal Hub settings. Are you sure?",
+        color=discord.Color.yellow()
+    )
+    
+    class ConfirmView(discord.ui.View):
+        def __init__(self):
+            super().__init__(timeout=30)
+            
+        @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.danger)
+        async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message("❌ Only the command author can confirm!", ephemeral=True)
+                return
+                
+            # Reset configuration
+            server_config.clear()
+            server_config.update({
+                "admin_role_id": None,
+                "buyer_role_id": None,
+                "control_channel_id": None,
+                "blacklist": [],
+                "theme_color": discord.Color.purple().value,
+                "is_setup": False
+            })
+            await save_config()
+            
+            await interaction.response.send_message("✅ Configuration reset! Run `!setup` to reconfigure.")
+            
+        @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.grey)
+        async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message("❌ Only the command author can cancel!", ephemeral=True)
+                return
+                
+            await interaction.response.send_message("Operation cancelled.")
+            
+    await ctx.send(embed=confirm_embed, view=ConfirmView())
+
+# Enhanced Control Panel
 class ControlPanel(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-
-    @discord.ui.button(label="🔑 Get Script", style=discord.ButtonStyle.green)
+        
+    @discord.ui.button(
+        label="🔑 Get Script",
+        style=discord.ButtonStyle.green,
+        custom_id="get_script",
+        row=0
+    )
     async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == BUYER_ROLE_ID for role in interaction.user.roles):
-            await interaction.response.send_message("❌ You need the buyer role!", ephemeral=True)
+        if interaction.user.id in server_config["blacklist"]:
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="⛔ Access Denied",
+                    description="You are blacklisted from Crystal Hub!",
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+            return
+            
+        if not any(role.id == server_config["buyer_role_id"] for role in interaction.user.roles):
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="❌ Access Denied",
+                    description="You need the premium role to access this feature!",
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
             return
 
+        # Loading animation
+        loading_embed = discord.Embed(
+            title="⚡ Generating Script",
+            description="Please wait while we prepare your script...",
+            color=discord.Color.yellow()
+        )
+        await interaction.response.send_message(embed=loading_embed, ephemeral=True)
+        
         user_id = str(interaction.user.id)
         if user_id not in hwid_data["users"]:
-            # Generate new HWID-locked script
             hwid = hashlib.sha256(f"{platform.node()}{uuid.getnode()}".encode()).hexdigest()
-            hwid_data["users"][user_id] = {"hwid": hwid, "resets": 0}
+            hwid_data["users"][user_id] = {
+                "hwid": hwid,
+                "resets": 0,
+                "last_updated": datetime.datetime.now().isoformat()
+            }
             await save_hwid_data()
 
-        # Generate HWID-locked script
         script = generate_hwid_script(interaction.user.id, hwid_data["users"][user_id]["hwid"])
         
-        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
-        await interaction.response.send_message("✨ Here's your HWID-locked script!", file=file, ephemeral=True)
-
-    @discord.ui.button(label="🔄 Reset HWID", style=discord.ButtonStyle.blurple)
-    async def reset_hwid(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = str(interaction.user.id)
-        if user_id not in hwid_data["users"]:
-            await interaction.response.send_message("❌ You don't have a bound HWID!", ephemeral=True)
-            return
-
-        if hwid_data["users"][user_id]["resets"] >= 3:
-            await interaction.response.send_message("❌ You've used all your HWID resets! Contact an admin.", ephemeral=True)
-            return
-
-        # Reset HWID
-        hwid_data["users"][user_id]["hwid"] = None
-        hwid_data["users"][user_id]["resets"] += 1
-        await save_hwid_data()
+        success_embed = discord.Embed(
+            title="✅ Script Generated",
+            description="Your HWID-locked premium script is ready!",
+            color=discord.Color.green()
+        )
+        success_embed.add_field(
+            name="HWID Information",
+            value=f"```\nHWID: {hwid_data['users'][user_id]['hwid'][:16]}...\nResets: {hwid_data['users'][user_id]['resets']}/3\nLast Updated: {hwid_data['users'][user_id]['last_updated']}\n```",
+            inline=False
+        )
         
-        await interaction.response.send_message("✅ HWID reset! Get your new script with the Get Script button.", ephemeral=True)
+        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
+        await interaction.edit_original_response(embed=success_embed, attachments=[file])
 
 # Function to generate HWID-locked script
 def generate_hwid_script(user_id, hwid):
@@ -988,63 +1179,569 @@ if verifyHWID() then
 end
 """
 
-# Enhanced Control Panel with animations
-class ControlPanel(discord.ui.View):
+# Analytics system
+analytics_data = {
+    "daily_users": {},
+    "script_executions": {},
+    "peak_times": [],
+    "total_executions": 0,
+    "user_stats": {}
+}
+
+try:
+    with open("analytics.json", "r") as f:
+        analytics_data = json.load(f)
+except FileNotFoundError:
+    with open("analytics.json", "w") as f:
+        json.dump(analytics_data, f, indent=4)
+
+async def save_analytics():
+    async with aiofiles.open("analytics.json", "w") as f:
+        await f.write(json.dumps(analytics_data, indent=4))
+
+async def track_execution(user_id: str):
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    current_hour = datetime.datetime.now().strftime("%H:00")
+    
+    # Track daily users
+    if today not in analytics_data["daily_users"]:
+        analytics_data["daily_users"][today] = []
+    if user_id not in analytics_data["daily_users"][today]:
+        analytics_data["daily_users"][today].append(user_id)
+    
+    # Track executions
+    if today not in analytics_data["script_executions"]:
+        analytics_data["script_executions"][today] = {}
+    if current_hour not in analytics_data["script_executions"][today]:
+        analytics_data["script_executions"][today][current_hour] = 0
+    analytics_data["script_executions"][today][current_hour] += 1
+    
+    # Track user stats
+    if user_id not in analytics_data["user_stats"]:
+        analytics_data["user_stats"][user_id] = {
+            "total_executions": 0,
+            "last_execution": None,
+            "favorite_times": {}
+        }
+    
+    analytics_data["user_stats"][user_id]["total_executions"] += 1
+    analytics_data["user_stats"][user_id]["last_execution"] = datetime.datetime.now().isoformat()
+    
+    if current_hour not in analytics_data["user_stats"][user_id]["favorite_times"]:
+        analytics_data["user_stats"][user_id]["favorite_times"][current_hour] = 0
+    analytics_data["user_stats"][user_id]["favorite_times"][current_hour] += 1
+    
+    analytics_data["total_executions"] += 1
+    await save_analytics()
+
+# Enhanced Control Panel with Analytics
+class AnalyticsDashboard(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
-        
-    @discord.ui.button(
-        label="🔑 Get Script",
-        style=discord.ButtonStyle.green,
-        custom_id="get_script"
-    )
-    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == BUYER_ROLE_ID for role in interaction.user.roles):
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="❌ Access Denied",
-                    description="You need the premium role to access this feature!",
-                    color=discord.Color.red()
-                ),
-                ephemeral=True
-            )
+    
+    @discord.ui.button(label="📊 View Analytics", style=discord.ButtonStyle.blurple)
+    async def view_analytics(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
             return
-
-        # Loading animation
-        loading_embed = discord.Embed(
-            title="⚡ Generating Script",
-            description="Please wait while we prepare your script...",
-            color=discord.Color.yellow()
+            
+        today = datetime.datetime.now().strftime("%Y-%m-%d")
+        
+        analytics_embed = discord.Embed(
+            title="📈 Crystal Hub Analytics",
+            description="Real-time statistics and insights",
+            color=discord.Color.blue()
         )
-        await interaction.response.send_message(embed=loading_embed, ephemeral=True)
         
-        user_id = str(interaction.user.id)
-        if user_id not in hwid_data["users"]:
-            hwid = hashlib.sha256(f"{platform.node()}{uuid.getnode()}".encode()).hexdigest()
-            hwid_data["users"][user_id] = {"hwid": hwid, "resets": 0}
-            await save_hwid_data()
+        # Daily Stats
+        daily_users = len(analytics_data["daily_users"].get(today, []))
+        analytics_embed.add_field(
+            name="📊 Today's Statistics",
+            value=f"```\nActive Users: {daily_users}\nExecutions: {sum(analytics_data['script_executions'].get(today, {}).values())}\nPeak Hour: {max(analytics_data['script_executions'].get(today, {'00:00': 0}).items(), key=lambda x: x[1])[0]}```",
+            inline=False
+        )
+        
+        # Total Stats
+        analytics_embed.add_field(
+            name="🌟 Overall Statistics",
+            value=f"```\nTotal Executions: {analytics_data['total_executions']}\nTotal Users: {len(analytics_data['user_stats'])}\nAverage Daily Users: {daily_users}```",
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=analytics_embed, ephemeral=True)
 
-        script = generate_hwid_script(interaction.user.id, hwid_data["users"][user_id]["hwid"])
-        
-        success_embed = discord.Embed(
-            title="✅ Script Generated",
-            description="Your HWID-locked premium script is ready!",
+# User Management Dashboard
+class UserManagement(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="👥 User Management", style=discord.ButtonStyle.green)
+    async def manage_users(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
+            return
+            
+        users_embed = discord.Embed(
+            title="👥 User Management",
+            description="Manage Crystal Hub users",
             color=discord.Color.green()
         )
-        success_embed.add_field(
-            name="HWID",
-            value=f"```{hwid_data['users'][user_id]['hwid'][:16]}...```",
-            inline=False
-        )
-        success_embed.add_field(
-            name="Resets Available",
-            value=f"```{3 - hwid_data['users'][user_id]['resets']}/3```",
+        
+        # Active users
+        active_users = []
+        for user_id, stats in analytics_data["user_stats"].items():
+            user = interaction.guild.get_member(int(user_id))
+            if user:
+                last_exec = datetime.datetime.fromisoformat(stats["last_execution"]) if stats["last_execution"] else None
+                active_users.append(f"{user.mention}: {stats['total_executions']} executions")
+        
+        users_embed.add_field(
+            name="🎮 Active Users",
+            value="\n".join(active_users[:10]) if active_users else "No active users",
             inline=False
         )
         
-        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
-        await interaction.edit_original_response(embed=success_embed, attachments=[file])
+        # Blacklisted users
+        blacklisted = []
+        for user_id in server_config["blacklist"]:
+            user = interaction.guild.get_member(user_id)
+            if user:
+                blacklisted.append(user.mention)
+        
+        users_embed.add_field(
+            name="⛔ Blacklisted Users",
+            value="\n".join(blacklisted) if blacklisted else "No blacklisted users",
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=users_embed, ephemeral=True)
 
-    # ... rest of your control panel buttons ...
+# Automated Announcements
+class AnnouncementSystem:
+    def __init__(self, bot):
+        self.bot = bot
+        self.announcements = []
+        self.bot.loop.create_task(self.announcement_loop())
+    
+    async def add_announcement(self, title, content, timestamp):
+        self.announcements.append({
+            "title": title,
+            "content": content,
+            "timestamp": timestamp
+        })
+        
+    async def announcement_loop(self):
+        while True:
+            now = datetime.datetime.now()
+            for announcement in self.announcements[:]:
+                if now >= announcement["timestamp"]:
+                    channel = self.bot.get_channel(server_config["control_channel_id"])
+                    if channel:
+                        embed = discord.Embed(
+                            title=announcement["title"],
+                            description=announcement["content"],
+                            color=discord.Color.gold()
+                        )
+                        await channel.send(embed=embed)
+                        self.announcements.remove(announcement)
+            await asyncio.sleep(60)
+
+# Add to your setup command
+announcement_system = AnnouncementSystem(bot)
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def announce(ctx, delay_hours: int, *, message):
+    """Schedule an announcement"""
+    timestamp = datetime.datetime.now() + datetime.timedelta(hours=delay_hours)
+    await announcement_system.add_announcement(
+        "📢 Crystal Hub Announcement",
+        message,
+        timestamp
+    )
+    await ctx.send(f"✅ Announcement scheduled for {timestamp}")
+
+# Version Control System
+version_data = {
+    "current_version": "1.0.0",
+    "versions": {
+        "1.0.0": {
+            "release_date": datetime.datetime.now().isoformat(),
+            "changes": ["Initial release"],
+            "script_url": "https://raw.githubusercontent.com/your-repo/main/v1.lua"
+        }
+    },
+    "auto_update": True
+}
+
+try:
+    with open("versions.json", "r") as f:
+        version_data = json.load(f)
+except FileNotFoundError:
+    with open("versions.json", "w") as f:
+        json.dump(version_data, f, indent=4)
+
+async def save_versions():
+    async with aiofiles.open("versions.json", "w") as f:
+        await f.write(json.dumps(version_data, indent=4))
+
+# Enhanced Analytics with Game Tracking
+analytics_data.update({
+    "game_stats": {},
+    "version_stats": {},
+    "performance_metrics": {},
+    "user_retention": {}
+})
+
+# Version Control Panel
+class VersionControl(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="🔄 Version Manager", style=discord.ButtonStyle.blurple)
+    async def version_manager(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
+            return
+        
+        version_embed = discord.Embed(
+            title="🔄 Version Control",
+            description=f"Current Version: `{version_data['current_version']}`",
+            color=discord.Color.blue()
+        )
+        
+        # Version history
+        history = ""
+        for version, data in version_data["versions"].items():
+            history += f"**{version}** - {data['release_date']}\n"
+            for change in data["changes"]:
+                history += f"• {change}\n"
+            history += "\n"
+        
+        version_embed.add_field(
+            name="📜 Version History",
+            value=history or "No version history",
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=version_embed, ephemeral=True)
+
+# Enhanced User Management
+class AdvancedUserManagement(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="📊 User Analytics", style=discord.ButtonStyle.green)
+    async def user_analytics(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
+            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
+            return
+        
+        analytics_embed = discord.Embed(
+            title="📊 Advanced User Analytics",
+            description="Detailed user statistics and metrics",
+            color=discord.Color.green()
+        )
+        
+        # User retention
+        retention_data = analytics_data["user_retention"]
+        weekly_retention = len([u for u in analytics_data["user_stats"].values() 
+                              if datetime.datetime.fromisoformat(u["last_execution"]) > 
+                              datetime.datetime.now() - datetime.timedelta(days=7)])
+        
+        analytics_embed.add_field(
+            name="👥 User Retention",
+            value=f"```\nWeekly Active: {weekly_retention}\nRetention Rate: {(weekly_retention/len(analytics_data['user_stats'])*100):.1f}%\n```",
+            inline=False
+        )
+        
+        # Game statistics
+        game_stats = ""
+        for game, stats in analytics_data["game_stats"].items():
+            game_stats += f"{game}: {stats['executions']} executions\n"
+        
+        analytics_embed.add_field(
+            name="🎮 Game Statistics",
+            value=f"```\n{game_stats or 'No game data'}```",
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=analytics_embed, ephemeral=True)
+
+# Auto-Update System
+class AutoUpdateSystem:
+    def __init__(self, bot):
+        self.bot = bot
+        self.bot.loop.create_task(self.update_checker())
+    
+    async def check_for_updates(self):
+        # Simulate checking for updates (replace with your actual update check)
+        return {
+            "version": "1.0.1",
+            "changes": ["Bug fixes", "New features"],
+            "script_url": "https://raw.githubusercontent.com/your-repo/main/v1.1.lua"
+        }
+    
+    async def update_checker(self):
+        while True:
+            if version_data["auto_update"]:
+                try:
+                    update = await self.check_for_updates()
+                    if update["version"] > version_data["current_version"]:
+                        # New version available
+                        version_data["versions"][update["version"]] = {
+                            "release_date": datetime.datetime.now().isoformat(),
+                            "changes": update["changes"],
+                            "script_url": update["script_url"]
+                        }
+                        version_data["current_version"] = update["version"]
+                        await save_versions()
+                        
+                        # Announce update
+                        channel = self.bot.get_channel(server_config["control_channel_id"])
+                        if channel:
+                            update_embed = discord.Embed(
+                                title="🆕 New Update Available!",
+                                description=f"Version {update['version']} has been released!",
+                                color=discord.Color.green()
+                            )
+                            update_embed.add_field(
+                                name="📝 Changes",
+                                value="\n".join(f"• {change}" for change in update["changes"]),
+                                inline=False
+                            )
+                            await channel.send(embed=update_embed)
+                except Exception as e:
+                    print(f"Update check failed: {e}")
+            
+            await asyncio.sleep(3600)  # Check every hour
+
+# Initialize auto-update system
+auto_updater = AutoUpdateSystem(bot)
+
+# Add to your setup command
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def updateversion(ctx, version: str, *, changelog: str):
+    """Update the script version"""
+    if version in version_data["versions"]:
+        await ctx.send("❌ Version already exists!")
+        return
+    
+    version_data["versions"][version] = {
+        "release_date": datetime.datetime.now().isoformat(),
+        "changes": [change.strip() for change in changelog.split(';')],
+        "script_url": f"https://raw.githubusercontent.com/your-repo/main/v{version}.lua"
+    }
+    version_data["current_version"] = version
+    await save_versions()
+    
+    embed = discord.Embed(
+        title="✅ Version Updated",
+        description=f"Successfully updated to version {version}",
+        color=discord.Color.green()
+    )
+    embed.add_field(
+        name="📝 Changelog",
+        value="\n".join(f"• {change}" for change in version_data["versions"][version]["changes"]),
+        inline=False
+    )
+    await ctx.send(embed=embed)
+
+# Add these to your control panel setup
+control_panel_message = await control_channel.send(
+    embed=control_embed,
+    view=discord.ui.View()
+        .add_item(ControlPanel())
+        .add_item(AnalyticsDashboard())
+        .add_item(UserManagement())
+        .add_item(VersionControl())
+        .add_item(AdvancedUserManagement())
+)
+
+# AI Support System
+support_config = {
+    "forum_channel_id": None,
+    "support_role_id": 1337656413442281482,
+    "languages": [
+        {"name": "English", "emoji": "🇬🇧", "code": "en"},
+        {"name": "Spanish", "emoji": "🇪🇸", "code": "es"},
+        {"name": "French", "emoji": "🇫🇷", "code": "fr"},
+        {"name": "German", "emoji": "🇩🇪", "code": "de"},
+        {"name": "Russian", "emoji": "🇷🇺", "code": "ru"},
+        {"name": "Chinese", "emoji": "🇨🇳", "code": "zh"},
+        {"name": "Japanese", "emoji": "🇯🇵", "code": "ja"},
+        {"name": "Korean", "emoji": "🇰🇷", "code": "ko"},
+        {"name": "Arabic", "emoji": "🇸🇦", "code": "ar"},
+        {"name": "Portuguese", "emoji": "🇵🇹", "code": "pt"}
+    ],
+    "common_issues": {
+        "ui_not_showing": {
+            "steps": [
+                "Check if your executor is supported",
+                "Try reinjecting the script",
+                "Clear your executor's workspace",
+                "Ensure you're using the latest version"
+            ],
+            "solution": "If the UI is not showing up, first try rejoining the game and reinjecting the script. If the issue persists, make sure you're using a supported executor like Synapse X, KRNL, or Script-Ware."
+        },
+        "hwid_error": {
+            "steps": [
+                "Verify your HWID hasn't been reset",
+                "Check if you're blacklisted",
+                "Request HWID reset if needed"
+            ],
+            "solution": "HWID errors usually occur when your hardware configuration has changed. You can request a HWID reset from the control panel."
+        }
+        # Add more common issues
+    }
+}
+
+class LanguageSelector(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.selected_language = None
+        self.setup_buttons()
+    
+    def setup_buttons(self):
+        # Create a fancy grid of language buttons
+        for i, lang in enumerate(support_config["languages"]):
+            button = discord.ui.Button(
+                label=lang["name"],
+                emoji=lang["emoji"],
+                custom_id=f"lang_{lang['code']}",
+                row=i // 3,
+                style=discord.ButtonStyle.blurple
+            )
+            button.callback = self.language_callback
+            self.add_item(button)
+    
+    async def language_callback(self, interaction: discord.Interaction):
+        lang_code = interaction.custom_id.split("_")[1]
+        lang = next(l for l in support_config["languages"] if l["code"] == lang_code)
+        
+        await interaction.response.edit_message(
+            embed=discord.Embed(
+                title=f"{lang['emoji']} Language Selected: {lang['name']}",
+                description="Thank you for selecting your language. Please describe your issue, and our AI assistant will help you.",
+                color=discord.Color.green()
+            ),
+            view=None
+        )
+        self.selected_language = lang_code
+        self.stop()
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setupsupportai(ctx):
+    """Set up the AI Support System with forum integration"""
+    try:
+        # Create Support Category
+        support_category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
+        
+        # Create Forum Channel
+        forum_channel = await support_category.create_forum_channel(
+            "🎫┃crystal-support",
+            topic="Crystal Hub AI Support System"
+        )
+        
+        # Save forum channel ID
+        support_config["forum_channel_id"] = forum_channel.id
+        
+        # Create TOS post
+        tos_embed = discord.Embed(
+            title="📜 Crystal Hub Support - Terms of Service",
+            description=(
+                "Welcome to Crystal Hub's AI Support System!\n\n"
+                "**Guidelines:**\n"
+                "1. Be specific about your issue\n"
+                "2. Provide relevant information\n"
+                "3. Follow the AI's instructions\n"
+                "4. Be patient and respectful\n\n"
+                "**How it works:**\n"
+                "1. Create a new post\n"
+                "2. Select your preferred language\n"
+                "3. Describe your issue\n"
+                "4. Our AI will assist you\n\n"
+                "**Note:** Complex issues will be escalated to our support team automatically."
+            ),
+            color=discord.Color.blue()
+        )
+        
+        await forum_channel.send(embed=tos_embed)
+        
+        # Success message
+        success_embed = discord.Embed(
+            title="✅ AI Support System Configured",
+            description=f"Support forum created: {forum_channel.mention}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=success_embed)
+        
+        # Set up forum auto-response
+        @bot.event
+        async def on_thread_create(thread):
+            if thread.parent_id == support_config["forum_channel_id"]:
+                # Welcome message
+                welcome_embed = discord.Embed(
+                    title="👋 Welcome to Crystal Hub Support",
+                    description=(
+                        "Hello! I'm Crystal AI, your personal support assistant.\n\n"
+                        "To better assist you, please select your preferred language:"
+                    ),
+                    color=discord.Color.purple()
+                )
+                
+                # Send welcome message with language selector
+                await thread.send(embed=welcome_embed, view=LanguageSelector())
+        
+        @bot.event
+        async def on_message(message):
+            if isinstance(message.channel, discord.Thread) and message.channel.parent_id == support_config["forum_channel_id"]:
+                if message.author.bot:
+                    return
+                
+                # Process user's issue
+                response = await process_support_issue(message.content)
+                if response["needs_human"]:
+                    support_role = message.guild.get_role(support_config["support_role_id"])
+                    await message.channel.send(f"{support_role.mention} Human assistance needed!")
+                
+                await message.channel.send(embed=response["embed"])
+
+    except Exception as e:
+        error_embed = discord.Embed(
+            title="❌ Setup Failed",
+            description=f"Error: {str(e)}",
+            color=discord.Color.red()
+        )
+        await ctx.send(embed=error_embed)
+
+async def process_support_issue(content: str):
+    """Process support issues and generate AI responses"""
+    content = content.lower()
+    
+    # Check for common issues
+    for issue, data in support_config["common_issues"].items():
+        if any(keyword in content for keyword in issue.split("_")):
+            response_embed = discord.Embed(
+                title="🔍 Issue Identified",
+                description=data["solution"],
+                color=discord.Color.blue()
+            )
+            response_embed.add_field(
+                name="📝 Steps to Resolve",
+                value="\n".join(f"• {step}" for step in data["steps"]),
+                inline=False
+            )
+            return {"embed": response_embed, "needs_human": False}
+    
+    # If no common issue found, escalate to human support
+    escalation_embed = discord.Embed(
+        title="👥 Escalating to Human Support",
+        description="I'll need to bring in our support team for this issue. Please wait while they review your case.",
+        color=discord.Color.orange()
+    )
+    return {"embed": escalation_embed, "needs_human": True}
 
 bot.run(os.getenv('DISCORD_TOKEN'))
