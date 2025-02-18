@@ -33,4 +33,7 @@ class SupportSystem(commands.Cog):
             await message.reply(embed=embed)
             
         except Exception as e:
-            await message.reply("❌ Sorry, I couldn't process your request. Please try again later.") 
+            await message.reply("❌ Sorry, I couldn't process your request. Please try again later.")
+
+async def setup(bot):
+    await bot.add_cog(SupportSystem(bot)) 
