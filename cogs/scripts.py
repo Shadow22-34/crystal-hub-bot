@@ -2,6 +2,8 @@ from discord.ext import commands
 import discord
 import datetime
 import io
+import aiofiles
+import json
 
 class ScriptManagement(commands.Cog):
     def __init__(self, bot):
@@ -62,6 +64,33 @@ class ScriptManagement(commands.Cog):
         )
         await ctx.author.send("🎮 Here's your script!", file=file)
         await ctx.send("✅ Script sent to your DMs!")
+
+    @commands.hybrid_command()
+    @commands.has_role("💎 Crystal Admin")
+    async def givescript(self, ctx):
+        """Send the full version Crystal Hub script"""
+        try:
+            # Load the full version script from JSON
+            async with aiofiles.open("full_version_scripts.json", "r") as f:
+                content = await f.read()
+                scripts = json.loads(content)
+            
+            basketball_script = scripts.get("basketball_legends", {}).get("script", "")
+            
+            if not basketball_script:
+                await ctx.send("❌ Full version script not found!")
+                return
+            
+            # Send the script file
+            file = discord.File(
+                io.StringIO(basketball_script),
+                filename="crystal_hub_basketball_full.lua"
+            )
+            await ctx.author.send("🎮 Here's the full version script:", file=file)
+            await ctx.send("✅ Script sent to your DMs!")
+        
+        except Exception as e:
+            await ctx.send(f"❌ Error: {str(e)}")
 
 async def setup(bot):
     await bot.add_cog(ScriptManagement(bot)) 
