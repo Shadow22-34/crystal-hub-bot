@@ -1,9 +1,9 @@
 from discord.ext import commands
 import discord
-from .. import bot, script_database, save_scripts
-from ..obfuscation import CrystalObfuscator
 import datetime
 from datetime import timedelta
+from integration import hwid_data, script_database, save_scripts
+from obfuscation import CrystalObfuscator
 
 class AdminCommands(commands.Cog):
     def __init__(self, bot):
