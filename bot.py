@@ -20,13 +20,13 @@ import platform
 import uuid
 from discord import app_commands
 
-# Import our modules
-from .obfuscation import CrystalObfuscator
-from .integration import AutoIntegration
-from .control_panel import EnhancedControlPanel
-from .cogs.admin import AdminCommands
-from .cogs.scripts import ScriptManagement
-from .cogs.setup import SetupCommands
+# Change relative imports to absolute imports
+from obfuscation import CrystalObfuscator
+from integration import AutoIntegration
+from control_panel import EnhancedControlPanel
+from cogs.admin import AdminCommands
+from cogs.scripts import ScriptManagement
+from cogs.setup import SetupCommands
 
 # Update these constants with your actual Discord IDs
 CLIENT_ID = "1340636044873302047"
