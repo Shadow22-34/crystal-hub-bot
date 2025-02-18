@@ -76,10 +76,11 @@ load_dotenv()
 class CrystalBot(commands.Bot):
     def __init__(self):
         super().__init__(
-            command_prefix="!",  # Keeping prefix for backup
+            command_prefix="/",  # Keeping prefix for backup
             intents=discord.Intents.all(),
             help_command=None
         )
+        self.tree = app_commands.CommandTree(self)
         
     async def setup_hook(self):
         await self.tree.sync()  # Sync slash commands
@@ -1463,4 +1464,146 @@ async def updateversion(ctx, game_name: str, new_version: str):
     )
     await ctx.send(embed=embed)
 
+# Admin Commands
+@bot.tree.command(name="blacklist", description="Blacklist a user from Crystal Hub")
+@app_commands.checks.has_role("Crystal Admin")
+async def blacklist(interaction: discord.Interaction, user: discord.Member):
+    try:
+        if user.id in server_config["blacklist"]:
+            await interaction.response.send_message("User is already blacklisted!", ephemeral=True)
+            return
+        
+        server_config["blacklist"].append(user.id)
+        await save_config()
+        await interaction.response.send_message(f"✅ {user.mention} has been blacklisted", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="compensate", description="Add days to all premium users")
+@app_commands.checks.has_role("Crystal Admin")
+async def compensate(interaction: discord.Interaction, days: int):
+    try:
+        for user_id in hwid_data["users"]:
+            if "expiry_date" in hwid_data["users"][user_id]:
+                current_expiry = datetime.datetime.fromisoformat(hwid_data["users"][user_id]["expiry_date"])
+                new_expiry = current_expiry + datetime.timedelta(days=days)
+                hwid_data["users"][user_id]["expiry_date"] = new_expiry.isoformat()
+        
+        await save_hwid_data()
+        await interaction.response.send_message(f"✅ Added {days} days to all premium users", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="force-resethwid", description="Force reset a user's HWID")
+@app_commands.checks.has_role("Crystal Admin")
+async def force_resethwid(interaction: discord.Interaction, user: discord.Member):
+    try:
+        user_id = str(user.id)
+        if user_id not in hwid_data["users"]:
+            await interaction.response.send_message("User has no HWID registered!", ephemeral=True)
+            return
+        
+        hwid_data["users"][user_id]["hwid"] = None
+        hwid_data["users"][user_id]["resets"] = 0
+        await save_hwid_data()
+        await interaction.response.send_message(f"✅ Reset HWID for {user.mention}", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="mass-generate", description="Generate multiple keys")
+@app_commands.checks.has_role("Crystal Admin")
+async def mass_generate(interaction: discord.Interaction, amount: int):
+    try:
+        keys = []
+        for _ in range(amount):
+            key = generate_key()  # Your key generation function
+            keys.append(key)
+            license_keys[key] = {"used": False, "used_by": None}
+        
+        await save_license_keys()
+        
+        # Send keys in a nice format
+        keys_text = "\n".join(keys)
+        await interaction.user.send(f"Generated Keys:\n```\n{keys_text}\n```")
+        await interaction.response.send_message(f"✅ Generated {amount} keys. Check your DMs!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="mass-whitelist", description="Whitelist multiple users")
+@app_commands.checks.has_role("Crystal Admin")
+async def mass_whitelist(interaction: discord.Interaction, users: str):
+    try:
+        user_ids = [int(uid.strip()) for uid in users.split(",")]
+        for user_id in user_ids:
+            if user_id not in hwid_data["users"]:
+                hwid_data["users"][str(user_id)] = {
+                    "hwid": None,
+                    "resets": 0,
+                    "whitelisted_at": datetime.datetime.now().isoformat()
+                }
+        
+        await save_hwid_data()
+        await interaction.response.send_message(f"✅ Whitelisted {len(user_ids)} users", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+# User Commands
+@bot.tree.command(name="redeem", description="Redeem a license key")
+async def redeem(interaction: discord.Interaction, key: str):
+    try:
+        if key not in license_keys or license_keys[key]["used"]:
+            await interaction.response.send_message("❌ Invalid or used key!", ephemeral=True)
+            return
+        
+        license_keys[key]["used"] = True
+        license_keys[key]["used_by"] = interaction.user.id
+        await save_license_keys()
+        
+        buyer_role = interaction.guild.get_role(server_config["buyer_role_id"])
+        await interaction.user.add_roles(buyer_role)
+        await interaction.response.send_message("✅ Successfully redeemed premium access!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="script", description="Get your premium script")
+async def script(interaction: discord.Interaction):
+    try:
+        if not check_premium(interaction.user):
+            await interaction.response.send_message("❌ Premium required!", ephemeral=True)
+            return
+        
+        user_id = str(interaction.user.id)
+        if user_id not in hwid_data["users"] or not hwid_data["users"][user_id]["hwid"]:
+            hwid = generate_hwid()  # Your HWID generation function
+            hwid_data["users"][user_id] = {
+                "hwid": hwid,
+                "resets": 0,
+                "last_updated": datetime.datetime.now().isoformat()
+            }
+            await save_hwid_data()
+        
+        script = generate_script(interaction.user.id)  # Your script generation function
+        await interaction.response.send_message(
+            "Here's your script:",
+            file=discord.File(io.StringIO(script), "crystal_hub.lua"),
+            ephemeral=True
+        )
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Error: {str(e)}", ephemeral=True)
+
+# Event Handlers
+@bot.event
+async def on_ready():
+    print(f"Bot is ready! Logged in as {bot.user}")
+    await setup_control_panel(bot.get_channel(server_config["control_channel_id"]))
+
+# Error Handling
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message("❌ You don't have permission to use this command!", ephemeral=True)
+    else:
+        await interaction.response.send_message(f"❌ An error occurred: {str(error)}", ephemeral=True)
+
+# Run the bot
 bot.run(os.getenv('DISCORD_TOKEN'))
