@@ -1,8 +1,25 @@
 from typing import Optional
 import aiohttp
 import asyncio
-from . import bot, hwid_data, script_database, save_scripts
-from .obfuscation import CrystalObfuscator
+import discord
+import json
+import os
+import aiofiles
+
+# Import directly from files instead of circular imports
+hwid_data = {}
+script_database = {"games": {}}
+
+try:
+    with open("hwid_data.json", "r") as f:
+        hwid_data = json.load(f)
+except FileNotFoundError:
+    with open("hwid_data.json", "w") as f:
+        json.dump(hwid_data, f, indent=4)
+
+async def save_scripts():
+    async with aiofiles.open("scripts.json", "w") as f:
+        await f.write(json.dumps(script_database, indent=4))
 
 class AutoIntegration:
     def __init__(self, bot):
