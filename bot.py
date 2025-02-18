@@ -91,7 +91,7 @@ class CrystalBot(commands.Bot):
         # Initialize our systems
         self.obfuscator = CrystalObfuscator()
         self.integration = AutoIntegration(self)
-        self.control_panel = None
+        self.control_panel = EnhancedControlPanel(self)
         self.script_database = script_database
         self.hwid_data = hwid_data
         
