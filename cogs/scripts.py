@@ -68,18 +68,61 @@ class ScriptManagement(commands.Cog):
     @commands.hybrid_command()
     @commands.has_role("💎 Crystal Admin")
     async def givescript(self, ctx):
-        """Send the full version Crystal Hub script"""
+        """Send the full version Crystal Hub script for testing"""
         try:
-            # Load the full version script from JSON
-            async with aiofiles.open("full_version_scripts.json", "r") as f:
-                content = await f.read()
-                scripts = json.loads(content)
-            
-            basketball_script = scripts.get("basketball_legends", {}).get("script", "")
-            
-            if not basketball_script:
-                await ctx.send("❌ Full version script not found!")
-                return
+            basketball_script = """-- Crystal Hub Basketball Legends (Full Version)
+local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/jiohasdas/CRYSTAL-HUB-SCRIPT/refs/heads/main/BASKETBALL%20LEGENDS"))()
+local Window = Library.CreateLib("Crystal Hub", "Ocean")
+
+-- Main Tab
+local Main = Window:NewTab("Main")
+local MainSection = Main:NewSection("Main Features")
+
+MainSection:NewButton("Auto Farm", "Auto farms points for you", function()
+    getgenv().Farm = true
+    while getgenv().Farm do
+        local args = {[1] = 1.5,[2] = CFrame.new(-3.03204, 0.0600014, 0.0467479),[3] = {["674"] = Vector3.new()},["s"] = 0.1}
+        game:GetService("ReplicatedStorage").Shot:FireServer(unpack(args))
+        wait()
+    end
+end)
+
+MainSection:NewButton("Stop Auto Farm", "Stops the auto farm", function()
+    getgenv().Farm = false
+end)
+
+-- Player Tab
+local Player = Window:NewTab("Player")
+local PlayerSection = Player:NewSection("Player Mods")
+
+PlayerSection:NewSlider("WalkSpeed", "Changes your walkspeed", 500, 16, function(s)
+    game.Players.LocalPlayer.Character.Humanoid.WalkSpeed = s
+end)
+
+PlayerSection:NewSlider("JumpPower", "Changes your jumppower", 500, 50, function(s)
+    game.Players.LocalPlayer.Character.Humanoid.JumpPower = s
+end)
+
+-- Premium Features
+local Premium = Window:NewTab("Premium")
+local PremiumSection = Premium:NewSection("Premium Features")
+
+PremiumSection:NewToggle("Infinite Stamina", "Never run out of stamina", function(state)
+    if state then
+        game:GetService("Players").LocalPlayer.PlayerGui.GameUI.Bottom.Stamina.Bar.Size = UDim2.new(1, 0, 1, 0)
+    end
+end)
+
+PremiumSection:NewButton("Instant Score", "Score from anywhere", function()
+    local args = {[1] = 2,[2] = CFrame.new(-3.03204, 0.0600014, 0.0467479),[3] = {["674"] = Vector3.new()},["s"] = 0.1}
+    game:GetService("ReplicatedStorage").Shot:FireServer(unpack(args))
+end)
+
+-- Credits
+local Credits = Window:NewTab("Credits")
+local CreditsSection = Credits:NewSection("Crystal Hub Premium")
+CreditsSection:NewLabel("Created by Crystal Hub Team")
+"""
             
             # Send the script file
             file = discord.File(
