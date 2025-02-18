@@ -20,9 +20,9 @@ import platform
 import uuid
 from discord import app_commands
 
-# Change relative imports to absolute imports
+# Import our modules
 from obfuscation import CrystalObfuscator
-from integration import AutoIntegration
+from integration import AutoIntegration, hwid_data, script_database, save_scripts
 from control_panel import EnhancedControlPanel
 from cogs.admin import AdminCommands
 from cogs.scripts import ScriptManagement
