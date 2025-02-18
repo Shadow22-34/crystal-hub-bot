@@ -19,16 +19,16 @@ import hashlib
 import platform
 import uuid
 
-# Update these constants
+# Update these constants with your actual Discord IDs
 CLIENT_ID = "1340636044873302047"
 CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
 REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
 KEY_LOG_CHANNEL_ID = 1340825360769613834
 
-# New constants for premium system
-CONTROL_PANEL_CHANNEL_ID = 1234567890  # Replace with your channel ID
-BUYER_ROLE_ID = 1234567890  # Replace with your role ID
-ADMIN_ROLE_ID = 1234567890  # Replace with your admin role ID
+# Replace these with your actual role IDs from your Discord server
+CONTROL_PANEL_CHANNEL_ID = 1340825360769613834  # The channel where control panel will be
+BUYER_ROLE_ID = 1340825360769613834  # Your "Premium" or "Buyer" role ID
+ADMIN_ROLE_ID = 1340825360769613834  # Your admin role ID
 
 # At the top with your other imports
 KEYS_FILE = "keys.json"
