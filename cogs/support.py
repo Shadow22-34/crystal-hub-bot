@@ -2,6 +2,7 @@ from discord.ext import commands
 import discord
 import openai
 import os
+import bot
 
 class SupportSystem(commands.Cog):
     def __init__(self, bot):
