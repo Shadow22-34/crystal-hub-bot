@@ -20,6 +20,14 @@ import platform
 import uuid
 from discord import app_commands
 
+# Import our modules
+from .obfuscation import CrystalObfuscator
+from .integration import AutoIntegration
+from .control_panel import EnhancedControlPanel
+from .cogs.admin import AdminCommands
+from .cogs.scripts import ScriptManagement
+from .cogs.setup import SetupCommands
+
 # Update these constants with your actual Discord IDs
 CLIENT_ID = "1340636044873302047"
 CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
@@ -76,15 +84,49 @@ load_dotenv()
 class CrystalBot(commands.Bot):
     def __init__(self):
         super().__init__(
-            command_prefix="/",
+            command_prefix="!",
             intents=discord.Intents.all(),
             help_command=None
         )
+        # Initialize our systems
+        self.obfuscator = CrystalObfuscator()
+        self.integration = AutoIntegration(self)
+        self.control_panel = None
+        self.script_database = script_database
+        self.hwid_data = hwid_data
         
     async def setup_hook(self):
+        # Load configurations
+        await load_configs()
+        
+        # Load cogs
+        await self.load_extension("cogs.admin")
+        await self.load_extension("cogs.scripts")
+        await self.load_extension("cogs.setup")
+        
+        # Sync commands
         await self.tree.sync()
 
+# Initialize the bot
 bot = CrystalBot()
+
+# Event: Bot is ready
+@bot.event
+async def on_ready():
+    print(f"Logged in as {bot.user}")
+    
+    # Initialize control panel
+    bot.control_panel = EnhancedControlPanel()
+    
+    # Set up control panel in designated channel
+    channel = bot.get_channel(CONTROL_PANEL_CHANNEL_ID)
+    if channel:
+        await channel.purge(limit=100)
+        embed = await bot.control_panel.generate_embed()
+        await channel.send(embed=embed, view=bot.control_panel)
+
+# Create cogs directory structure
+os.makedirs("./cogs", exist_ok=True)
 
 # Command group for admin commands
 admin_group = app_commands.Group(name="admin", description="Admin commands")
@@ -1247,8 +1289,9 @@ def check_buyer(ctx):
 
 # Example of using the new role checks
 @bot.command()
+@commands.has_permissions(administrator=True)
 async def givepremium(ctx, user: discord.Member):
-    """Give a user premium access"""
+    """Grant premium access to a user"""
     if not check_admin(ctx):
         await ctx.send("❌ You need the Crystal Admin role!")
         return
@@ -1437,487 +1480,34 @@ class ControlPanel(discord.ui.View):
             
         # Add redeem logic here...
 
-@bot.command(name='crystalhelp')
-async def crystal_help(ctx):
-    """Enhanced help command"""
-    help_embed = discord.Embed(
+@bot.tree.command(name="help")
+async def help(interaction: discord.Interaction):
+    """Show Crystal Hub commands"""
+    embed = discord.Embed(
         title="🌟 Crystal Hub Commands",
         description="Welcome to Crystal Hub's command center!",
         color=discord.Color.purple()
     )
     
     # Admin Commands
-    admin_cmds = """
-    `!setup` - Initialize Crystal Hub
-    `!setupsupportai` - Set up AI support system
-    `!announce` - Schedule announcements
-    `!blacklist` - Manage blacklisted users
-    `!givepremium` - Grant premium access
-    `!updateversion` - Update script version
+    if interaction.user.get_role(ADMIN_ROLE_ID):
+        admin_cmds = """
+        `/setup` - Initialize Crystal Hub
+        `/givepremium` - Grant premium access
+        `/blacklist` - Blacklist a user
+        `/addscript` - Add a new script
+        """
+        embed.add_field(name="👑 Admin Commands", value=admin_cmds, inline=False)
     
-    **Script Management:**
-    `!addgame <name> <script>` - Add new game script
-    `!updatescript <game> <version> <script>` - Update game script
-    `!obfuscate <game>` - Obfuscate game script
-    `!scriptinfo [game]` - View script information
-    `!backupscripts` - Backup all scripts
-    `!restorescripts` - Restore from backup
-    """
-    help_embed.add_field(
-        name="👑 Admin Commands",
-        value=admin_cmds.strip(),
-        inline=False
-    )
+    # Premium Commands
+    if interaction.user.get_role(BUYER_ROLE_ID):
+        premium_cmds = """
+        `/getscript` - Get your HWID-locked script
+        `/resethwid` - Reset your HWID
+        `/support` - Get AI-powered support
+        """
+        embed.add_field(name="⭐ Premium Commands", value=premium_cmds, inline=False)
     
-    # User Commands
-    user_cmds = """
-    `!crystalhelp` - Show this message
-    `!time` - Show server time
-    `!getscript` - Get your premium script
-    `!resethwid` - Reset your HWID (3 times max)
-    """
-    help_embed.add_field(
-        name="👤 User Commands",
-        value=user_cmds.strip(),
-        inline=False
-    )
-    
-    # Support Commands
-    support_cmds = """
-    Create a post in <#${support_config['forum_channel_id']}> for AI assistance
-    Use language selection to get help in your preferred language
-    """
-    help_embed.add_field(
-        name="🎫 Support System",
-        value=support_cmds.strip(),
-        inline=False
-    )
-    
-    help_embed.set_footer(text="Crystal Hub Premium © 2024")
-    await ctx.send(embed=help_embed)
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def setupsupportai(ctx):
-    """Set up the AI Support System"""
-    try:
-        # Create category first
-        category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
-        
-        # Create forum channel with proper permissions
-        forum_channel = await ctx.guild.create_forum(
-            name="🎫┃crystal-support",
-            category=category,
-            topic="Crystal Hub AI Support System"
-        )
-        
-        # Save forum channel ID
-        support_config["forum_channel_id"] = forum_channel.id
-        
-        # Create TOS post
-        tos_embed = discord.Embed(
-            title="📜 Crystal Hub Support - Terms of Service",
-            description=(
-                "Welcome to Crystal Hub's AI Support System!\n\n"
-                "**Guidelines:**\n"
-                "1. Be specific about your issue\n"
-                "2. Provide relevant information\n"
-                "3. Follow the AI's instructions\n"
-                "4. Be patient and respectful\n\n"
-                "**How it works:**\n"
-                "1. Create a new post\n"
-                "2. Select your preferred language\n"
-                "3. Describe your issue\n"
-                "4. Our AI will assist you\n\n"
-                "**Note:** Complex issues will be escalated to our support team automatically."
-            ),
-            color=discord.Color.blue()
-        )
-        
-        await forum_channel.send(embed=tos_embed)
-        
-        # Success message
-        success_embed = discord.Embed(
-            title="✅ AI Support System Configured",
-            description=f"Support forum created: {forum_channel.mention}",
-            color=discord.Color.green()
-        )
-        await ctx.send(embed=success_embed)
-        
-        # Set up forum auto-response
-        @bot.event
-        async def on_thread_create(thread):
-            if thread.parent_id == support_config["forum_channel_id"]:
-                # Welcome message
-                welcome_embed = discord.Embed(
-                    title="👋 Welcome to Crystal Hub Support",
-                    description=(
-                        "Hello! I'm Crystal AI, your personal support assistant.\n\n"
-                        "To better assist you, please select your preferred language:"
-                    ),
-                    color=discord.Color.purple()
-                )
-                
-                # Send welcome message with language selector
-                await thread.send(embed=welcome_embed, view=LanguageSelector())
-        
-        @bot.event
-        async def on_message(message):
-            if isinstance(message.channel, discord.Thread) and message.channel.parent_id == support_config["forum_channel_id"]:
-                if message.author.bot:
-                    return
-                
-                # Process user's issue
-                response = await process_support_issue(message.content)
-                if response["needs_human"]:
-                    support_role = message.guild.get_role(support_config["support_role_id"])
-                    await message.channel.send(f"{support_role.mention} Human assistance needed!")
-                
-                await message.channel.send(embed=response["embed"])
-
-    except Exception as e:
-        error_embed = discord.Embed(
-            title="❌ Setup Failed",
-            description=f"Error: {str(e)}",
-            color=discord.Color.red()
-        )
-        await ctx.send(embed=error_embed)
-
-async def process_support_issue(content: str):
-    """Process support issues and generate AI responses"""
-    content = content.lower()
-    
-    # Check for common issues
-    for issue, data in support_config["common_issues"].items():
-        if any(keyword in content for keyword in issue.split("_")):
-            response_embed = discord.Embed(
-                title="🔍 Issue Identified",
-                description=data["solution"],
-                color=discord.Color.blue()
-            )
-            response_embed.add_field(
-                name="📝 Steps to Resolve",
-                value="\n".join(f"• {step}" for step in data["steps"]),
-                inline=False
-            )
-            return {"embed": response_embed, "needs_human": False}
-    
-    # If no common issue found, escalate to human support
-    escalation_embed = discord.Embed(
-        title="👥 Escalating to Human Support",
-        description="I'll need to bring in our support team for this issue. Please wait while they review your case.",
-        color=discord.Color.orange()
-    )
-    return {"embed": escalation_embed, "needs_human": True}
-
-# Script Management System
-script_database = {
-    "games": {},
-    "versions": {},
-    "obfuscated": {}
-}
-
-try:
-    with open("script_database.json", "r") as f:
-        script_database = json.load(f)
-except FileNotFoundError:
-    with open("script_database.json", "w") as f:
-        json.dump(script_database, f, indent=4)
-
-async def save_scripts():
-    async with aiofiles.open("script_database.json", "w") as f:
-        await f.write(json.dumps(script_database, indent=4))
-
-class EnhancedControlPanel(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="🎮 Get Script", style=discord.ButtonStyle.green, row=0)
-    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not check_premium(interaction.user):
-            await interaction.response.send_message("❌ Premium required!", ephemeral=True)
-            return
-            
-        # Create game selection dropdown
-        games = [discord.SelectOption(label=game, description=f"v{data['version']}")
-                for game, data in script_database["games"].items()]
-        
-        select = discord.ui.Select(
-            placeholder="Select a game...",
-            options=games
-        )
-        
-        view = discord.ui.View()
-        view.add_item(select)
-        await interaction.response.send_message("Choose your game:", view=view, ephemeral=True)
-    
-    @discord.ui.button(label="🔄 Reset HWID", style=discord.ButtonStyle.blurple, row=1)
-    async def reset_hwid(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user_id = str(interaction.user.id)
-        if user_id not in hwid_data["users"]:
-            await interaction.response.send_message("❌ No HWID found!", ephemeral=True)
-            return
-            
-        if hwid_data["users"][user_id]["resets"] >= 3:
-            await interaction.response.send_message("❌ Maximum resets reached!", ephemeral=True)
-            return
-            
-        hwid_data["users"][user_id]["resets"] += 1
-        hwid_data["users"][user_id]["hwid"] = None
-        await save_hwid_data()
-        
-        await interaction.response.send_message(
-            "✅ HWID reset successful! Get your new script above.",
-            ephemeral=True
-        )
-    
-    @discord.ui.button(label="⭐ Redeem Premium", style=discord.ButtonStyle.primary, row=2)
-    async def redeem_premium(self, interaction: discord.Interaction, button: discord.ui.Button):
-        buyer_role = interaction.guild.get_role(server_config["buyer_role_id"])
-        if buyer_role in interaction.user.roles:
-            await interaction.response.send_message("❌ You already have premium!", ephemeral=True)
-            return
-        
-        # Add premium role logic here
-        try:
-            await interaction.user.add_roles(buyer_role)
-            await interaction.response.send_message(
-                "✅ Premium role granted! You now have access to Crystal Hub.",
-                ephemeral=True
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Failed to grant premium: {str(e)}",
-                ephemeral=True
-            )
-
-    @discord.ui.button(label="📊 Statistics", style=discord.ButtonStyle.secondary, row=3)
-    async def view_stats(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not check_premium(interaction.user):
-            await interaction.response.send_message("❌ Premium required!", ephemeral=True)
-            return
-        
-        stats_embed = discord.Embed(
-            title="📊 Your Crystal Hub Statistics",
-            color=discord.Color.blue()
-        )
-        
-        user_id = str(interaction.user.id)
-        if user_id in hwid_data["users"]:
-            hwid_info = hwid_data["users"][user_id]
-            stats_embed.add_field(
-                name="HWID Information",
-                value=f"Resets Used: {hwid_info['resets']}/3\nLast Updated: {hwid_info['last_updated']}",
-                inline=False
-            )
-        
-        await interaction.response.send_message(embed=stats_embed, ephemeral=True)
-
-# Function to check premium status
-def check_premium(user):
-    return any(role.id == server_config["buyer_role_id"] for role in user.roles)
-
-# Script Management Commands
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def addgame(ctx, game_name: str, *, script_content: str):
-    """Add a new game script"""
-    script_database["games"][game_name] = {
-        "version": "1.0.0",
-        "script": script_content,
-        "added_by": ctx.author.id,
-        "date_added": datetime.datetime.now().isoformat()
-    }
-    await save_scripts()
-    
-    embed = discord.Embed(
-        title="✅ Game Added",
-        description=f"Successfully added script for {game_name}",
-        color=discord.Color.green()
-    )
-    await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def updatescript(ctx, game_name: str, version: str, *, script_content: str):
-    """Update an existing game script"""
-    if game_name not in script_database["games"]:
-        await ctx.send("❌ Game not found!")
-        return
-    
-    script_database["games"][game_name].update({
-        "version": version,
-        "script": script_content,
-        "last_updated": datetime.datetime.now().isoformat(),
-        "updated_by": ctx.author.id
-    })
-    await save_scripts()
-    
-    embed = discord.Embed(
-        title="✅ Script Updated",
-        description=f"Updated {game_name} to version {version}",
-        color=discord.Color.green()
-    )
-    await ctx.send(embed=embed)
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def obfuscate(ctx, game_name: str):
-    """Obfuscate a game script"""
-    if game_name not in script_database["games"]:
-        await ctx.send("❌ Game not found!")
-        return
-    
-    script = script_database["games"][game_name]["script"]
-    
-    # Advanced obfuscation
-    obfuscated = await obfuscate_script(script)
-    
-    script_database["obfuscated"][game_name] = {
-        "script": obfuscated,
-        "version": script_database["games"][game_name]["version"],
-        "obfuscated_at": datetime.datetime.now().isoformat()
-    }
-    await save_scripts()
-    
-    file = discord.File(
-        io.StringIO(obfuscated),
-        filename=f"{game_name}_obfuscated.lua"
-    )
-    await ctx.send("✅ Script obfuscated:", file=file)
-
-async def obfuscate_script(script: str) -> str:
-    """Advanced script obfuscation"""
-    # Add your obfuscation logic here
-    # This is a placeholder for your actual obfuscation code
-    obfuscated = f"""
--- Crystal Hub Premium Obfuscation
--- {datetime.datetime.now().isoformat()}
-local function decode(str)
-    return (str:gsub('..', function(cc)
-        return string.char(tonumber(cc, 16))
-    end))
-end
-{script}
-"""
-    return obfuscated
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def scriptinfo(ctx, game_name: str = None):
-    """View script information"""
-    if game_name and game_name not in script_database["games"]:
-        await ctx.send("❌ Game not found!")
-        return
-    
-    embed = discord.Embed(
-        title="🎮 Script Information",
-        color=discord.Color.blue()
-    )
-    
-    if game_name:
-        game = script_database["games"][game_name]
-        embed.add_field(name="Game", value=game_name, inline=False)
-        embed.add_field(name="Version", value=game["version"], inline=True)
-        embed.add_field(name="Last Updated", value=game["last_updated"], inline=True)
-    else:
-        for game, data in script_database["games"].items():
-            embed.add_field(
-                name=game,
-                value=f"Version: {data['version']}\nLast Updated: {data['last_updated']}",
-                inline=False
-            )
-    
-    await ctx.send(embed=embed)
-
-# Support system fix
-support_config = {
-    "forum_channel_id": None,
-    "support_role_id": 1337656413442281482,
-    "languages": [
-        {"name": "English", "emoji": "🇬🇧", "code": "en"},
-        {"name": "Spanish", "emoji": "🇪🇸", "code": "es"},
-        # ... other languages ...
-    ]
-}
-
-# New backup commands
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def backupscripts(ctx):
-    """Backup all scripts"""
-    try:
-        backup_data = {
-            "timestamp": datetime.datetime.now().isoformat(),
-            "scripts": script_database,
-            "backed_up_by": ctx.author.id
-        }
-        
-        backup_file = f"backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        with open(backup_file, "w") as f:
-            json.dump(backup_data, f, indent=4)
-            
-        await ctx.send(file=discord.File(backup_file))
-        os.remove(backup_file)  # Clean up
-        
-        embed = discord.Embed(
-            title="✅ Backup Complete",
-            description="All scripts have been backed up successfully!",
-            color=discord.Color.green()
-        )
-        await ctx.send(embed=embed)
-        
-    except Exception as e:
-        await ctx.send(f"❌ Backup failed: {str(e)}")
-
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def restorescripts(ctx):
-    """Restore scripts from backup"""
-    if not ctx.message.attachments:
-        await ctx.send("❌ Please attach a backup file!")
-        return
-        
-    try:
-        backup_file = await ctx.message.attachments[0].read()
-        backup_data = json.loads(backup_file)
-        
-        # Verify backup data
-        if "scripts" not in backup_data:
-            await ctx.send("❌ Invalid backup file!")
-            return
-            
-        script_database.update(backup_data["scripts"])
-        await save_scripts()
-        
-        embed = discord.Embed(
-            title="✅ Restore Complete",
-            description=f"Scripts restored from backup dated {backup_data['timestamp']}",
-            color=discord.Color.green()
-        )
-        await ctx.send(embed=embed)
-        
-    except Exception as e:
-        await ctx.send(f"❌ Restore failed: {str(e)}")
-
-# Version control command
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def updateversion(ctx, game_name: str, new_version: str):
-    """Update game script version"""
-    if game_name not in script_database["games"]:
-        await ctx.send("❌ Game not found!")
-        return
-        
-    old_version = script_database["games"][game_name]["version"]
-    script_database["games"][game_name]["version"] = new_version
-    await save_scripts()
-    
-    embed = discord.Embed(
-        title="✅ Version Updated",
-        description=f"Updated {game_name} from v{old_version} to v{new_version}",
-        color=discord.Color.green()
-    )
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 bot.run(os.getenv('DISCORD_TOKEN'))
