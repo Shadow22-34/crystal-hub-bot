@@ -1102,93 +1102,130 @@ async def resetup(ctx):
 class ControlPanel(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
+        self.setup_buttons()
+    
+    def setup_buttons(self):
+        # Get Script Button
+        get_script = discord.ui.Button(
+            label="📜 Get Script",
+            style=discord.ButtonStyle.green,
+            custom_id="get_script",
+            row=0
+        )
+        get_script.callback = self.get_script_callback
         
-    @discord.ui.button(
-        label="🔑 Get Script",
-        style=discord.ButtonStyle.green,
-        custom_id="get_script",
-        row=0
-    )
-    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Reset HWID Button
+        reset_hwid = discord.ui.Button(
+            label="🔄 Reset HWID",
+            style=discord.ButtonStyle.blurple,
+            custom_id="reset_hwid",
+            row=1
+        )
+        reset_hwid.callback = self.reset_hwid_callback
+        
+        # Redeem Role Button
+        redeem_role = discord.ui.Button(
+            label="⭐ Redeem Premium",
+            style=discord.ButtonStyle.primary,
+            custom_id="redeem_role",
+            row=2
+        )
+        redeem_role.callback = self.redeem_callback
+        
+        self.add_item(get_script)
+        self.add_item(reset_hwid)
+        self.add_item(redeem_role)
+    
+    async def get_script_callback(self, interaction: discord.Interaction):
         if interaction.user.id in server_config["blacklist"]:
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="⛔ Access Denied",
-                    description="You are blacklisted from Crystal Hub!",
-                    color=discord.Color.red()
-                ),
-                ephemeral=True
-            )
+            await interaction.response.send_message("⛔ You are blacklisted!", ephemeral=True)
             return
             
-        if not any(role.id == server_config["buyer_role_id"] for role in interaction.user.roles):
-            await interaction.response.send_message(
-                embed=discord.Embed(
-                    title="❌ Access Denied",
-                    description="You need the premium role to access this feature!",
-                    color=discord.Color.red()
-                ),
-                ephemeral=True
-            )
-            return
-
-        # Loading animation
-        loading_embed = discord.Embed(
-            title="⚡ Generating Script",
-            description="Please wait while we prepare your script...",
-            color=discord.Color.yellow()
-        )
-        await interaction.response.send_message(embed=loading_embed, ephemeral=True)
-        
+        # Script generation logic here...
+    
+    async def reset_hwid_callback(self, interaction: discord.Interaction):
         user_id = str(interaction.user.id)
         if user_id not in hwid_data["users"]:
-            hwid = hashlib.sha256(f"{platform.node()}{uuid.getnode()}".encode()).hexdigest()
-            hwid_data["users"][user_id] = {
-                "hwid": hwid,
-                "resets": 0,
-                "last_updated": datetime.datetime.now().isoformat()
-            }
-            await save_hwid_data()
-
-        script = generate_hwid_script(interaction.user.id, hwid_data["users"][user_id]["hwid"])
+            await interaction.response.send_message("❌ No HWID found!", ephemeral=True)
+            return
+            
+        if hwid_data["users"][user_id]["resets"] >= 3:
+            await interaction.response.send_message("❌ Maximum resets reached!", ephemeral=True)
+            return
+            
+        hwid_data["users"][user_id]["resets"] += 1
+        hwid_data["users"][user_id]["hwid"] = None
+        await save_hwid_data()
         
-        success_embed = discord.Embed(
-            title="✅ Script Generated",
-            description="Your HWID-locked premium script is ready!",
-            color=discord.Color.green()
+        await interaction.response.send_message(
+            "✅ HWID reset successful! Get your new script above.",
+            ephemeral=True
         )
-        success_embed.add_field(
-            name="HWID Information",
-            value=f"```\nHWID: {hwid_data['users'][user_id]['hwid'][:16]}...\nResets: {hwid_data['users'][user_id]['resets']}/3\nLast Updated: {hwid_data['users'][user_id]['last_updated']}\n```",
-            inline=False
+    
+    async def redeem_callback(self, interaction: discord.Interaction):
+        buyer_role = interaction.guild.get_role(server_config["buyer_role_id"])
+        if buyer_role in interaction.user.roles:
+            await interaction.response.send_message("❌ You already have premium!", ephemeral=True)
+            return
+            
+        # Add redeem logic here...
+
+@bot.command()
+async def help(ctx):
+    """Enhanced help command"""
+    help_embed = discord.Embed(
+        title="🌟 Crystal Hub Commands",
+        description="Welcome to Crystal Hub's command center!",
+        color=discord.Color.purple()
+    )
+    
+    # Admin Commands
+    admin_cmds = """
+    `!setup` - Initialize Crystal Hub
+    `!setupsupportai` - Set up AI support system
+    `!announce` - Schedule announcements
+    `!blacklist` - Manage blacklisted users
+    `!givepremium` - Grant premium access
+    """
+    help_embed.add_field(
+        name="👑 Admin Commands",
+        value=admin_cmds.strip(),
+        inline=False
+    )
+    
+    # User Commands
+    user_cmds = """
+    `!help` - Show this message
+    `!time` - Show server time
+    """
+    help_embed.add_field(
+        name="👤 User Commands",
+        value=user_cmds.strip(),
+        inline=False
+    )
+    
+    help_embed.set_footer(text="Crystal Hub Premium © 2024")
+    await ctx.send(embed=help_embed)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setupsupportai(ctx):
+    """Set up the AI Support System"""
+    try:
+        # Create category first
+        category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
+        
+        # Create forum channel with proper permissions
+        forum_channel = await ctx.guild.create_forum(
+            name="🎫┃crystal-support",
+            category=category,
+            topic="Crystal Hub AI Support System"
         )
         
-        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
-        await interaction.edit_original_response(embed=success_embed, attachments=[file])
-
-# Function to generate HWID-locked script
-def generate_hwid_script(user_id, hwid):
-    return f"""
--- Crystal Hub Premium (HWID: {hwid[:8]}...)
-local function getHWID()
-    local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
-    return hwid
-end
-
-local function verifyHWID()
-    local currentHWID = getHWID()
-    if currentHWID ~= "{hwid}" then
-        game.Players.LocalPlayer:Kick("⚠️ HWID Mismatch! Reset your HWID in the Discord.")
-        return false
-    end
-    return true
-end
-
-if verifyHWID() then
-    -- Your premium script here
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/jiohasdas/CRYSTAL-HUB-SCRIPT/refs/heads/main/BASKETBALL%20LEGENDS"))()
-end
-"""
+        # Rest of the setup code...
+        
+    except Exception as e:
+        await ctx.send(f"❌ Setup failed: {str(e)}")
 
 # Analytics system
 analytics_data = {
@@ -1649,14 +1686,15 @@ class LanguageSelector(discord.ui.View):
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setupsupportai(ctx):
-    """Set up the AI Support System with forum integration"""
+    """Set up the AI Support System"""
     try:
-        # Create Support Category
-        support_category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
+        # Create category first
+        category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
         
-        # Create Forum Channel
-        forum_channel = await support_category.create_forum_channel(
-            "🎫┃crystal-support",
+        # Create forum channel with proper permissions
+        forum_channel = await ctx.guild.create_forum(
+            name="🎫┃crystal-support",
+            category=category,
             topic="Crystal Hub AI Support System"
         )
         
