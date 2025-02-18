@@ -15,6 +15,9 @@ import base64
 import cryptography
 from cryptography.fernet import Fernet
 import io
+import hashlib
+import platform
+import uuid
 
 # Update these constants
 CLIENT_ID = "1340636044873302047"
@@ -22,8 +25,30 @@ CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
 REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
 KEY_LOG_CHANNEL_ID = 1340825360769613834
 
+# New constants for premium system
+CONTROL_PANEL_CHANNEL_ID = 1234567890  # Replace with your channel ID
+BUYER_ROLE_ID = 1234567890  # Replace with your role ID
+ADMIN_ROLE_ID = 1234567890  # Replace with your admin role ID
+
 # At the top with your other imports
 KEYS_FILE = "keys.json"
+
+# HWID management
+hwid_data = {
+    "users": {},  # Store user HWIDs
+    "resets": {}  # Track HWID resets
+}
+
+try:
+    with open("hwid_data.json", "r") as f:
+        hwid_data = json.load(f)
+except FileNotFoundError:
+    with open("hwid_data.json", "w") as f:
+        json.dump(hwid_data, f, indent=4)
+
+async def save_hwid_data():
+    async with aiofiles.open("hwid_data.json", "w") as f:
+        await f.write(json.dumps(hwid_data, indent=4))
 
 # Initialize keys structure
 keys_data = {
@@ -714,5 +739,131 @@ async def on_ready():
         log_message("BOT", "✅ Server initialization complete")
     except Exception as e:
         log_message("BOT", "❌ Failed to start server", e)
+
+# Premium control panel
+class ControlPanel(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="🔑 Get Script", style=discord.ButtonStyle.green)
+    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == BUYER_ROLE_ID for role in interaction.user.roles):
+            await interaction.response.send_message("❌ You need the buyer role!", ephemeral=True)
+            return
+
+        user_id = str(interaction.user.id)
+        if user_id not in hwid_data["users"]:
+            # Generate new HWID-locked script
+            hwid = hashlib.sha256(f"{platform.node()}{uuid.getnode()}".encode()).hexdigest()
+            hwid_data["users"][user_id] = {"hwid": hwid, "resets": 0}
+            await save_hwid_data()
+
+        # Generate HWID-locked script
+        script = generate_hwid_script(interaction.user.id, hwid_data["users"][user_id]["hwid"])
+        
+        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
+        await interaction.response.send_message("✨ Here's your HWID-locked script!", file=file, ephemeral=True)
+
+    @discord.ui.button(label="🔄 Reset HWID", style=discord.ButtonStyle.blurple)
+    async def reset_hwid(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user_id = str(interaction.user.id)
+        if user_id not in hwid_data["users"]:
+            await interaction.response.send_message("❌ You don't have a bound HWID!", ephemeral=True)
+            return
+
+        if hwid_data["users"][user_id]["resets"] >= 3:
+            await interaction.response.send_message("❌ You've used all your HWID resets! Contact an admin.", ephemeral=True)
+            return
+
+        # Reset HWID
+        hwid_data["users"][user_id]["hwid"] = None
+        hwid_data["users"][user_id]["resets"] += 1
+        await save_hwid_data()
+        
+        await interaction.response.send_message("✅ HWID reset! Get your new script with the Get Script button.", ephemeral=True)
+
+# Admin commands
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def givepremium(ctx, user: discord.Member):
+    """Give a user premium access"""
+    try:
+        buyer_role = ctx.guild.get_role(BUYER_ROLE_ID)
+        await user.add_roles(buyer_role)
+        
+        embed = discord.Embed(
+            title="✨ Premium Access Granted",
+            description=f"Gave premium to {user.mention}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        
+        # DM user instructions
+        dm_embed = discord.Embed(
+            title="🎉 Welcome to Crystal Hub Premium!",
+            description="Head to the control panel to get your HWID-locked script!",
+            color=discord.Color.purple()
+        )
+        await user.send(embed=dm_embed)
+    except Exception as e:
+        await ctx.send(f"❌ Error: {str(e)}")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def resetpremium(ctx, user: discord.Member):
+    """Force reset a user's HWID"""
+    user_id = str(user.id)
+    if user_id in hwid_data["users"]:
+        hwid_data["users"][user_id]["hwid"] = None
+        hwid_data["users"][user_id]["resets"] = 0
+        await save_hwid_data()
+        
+        embed = discord.Embed(
+            title="🔄 HWID Reset",
+            description=f"Reset HWID for {user.mention}",
+            color=discord.Color.blue()
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("❌ User has no HWID bound!")
+
+# Function to generate HWID-locked script
+def generate_hwid_script(user_id, hwid):
+    return f"""
+-- Crystal Hub Premium (HWID: {hwid[:8]}...)
+local function getHWID()
+    local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+    return hwid
+end
+
+local function verifyHWID()
+    local currentHWID = getHWID()
+    if currentHWID ~= "{hwid}" then
+        game.Players.LocalPlayer:Kick("⚠️ HWID Mismatch! Reset your HWID in the Discord.")
+        return false
+    end
+    return true
+end
+
+if verifyHWID() then
+    -- Your premium script here
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/jiohasdas/CRYSTAL-HUB-SCRIPT/refs/heads/main/BASKETBALL%20LEGENDS"))()
+end
+"""
+
+# Control panel setup
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def setupcontrol(ctx):
+    """Set up the control panel"""
+    embed = discord.Embed(
+        title="🎮 Crystal Hub Control Panel",
+        description="Welcome to the premium control panel!\n\n"
+                   "🔑 **Get Script** - Get your HWID-locked script\n"
+                   "🔄 **Reset HWID** - Reset your HWID (3 resets max)\n",
+        color=discord.Color.purple()
+    )
+    
+    await ctx.send(embed=embed, view=ControlPanel())
 
 bot.run(os.getenv('DISCORD_TOKEN'))
