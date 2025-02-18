@@ -952,6 +952,17 @@ async def setup(ctx):
         setup_embed.color = discord.Color.green()
         await status_msg.edit(embed=setup_embed)
 
+        # Create the control panel with all views
+        control_panel_message = await control_channel.send(
+            embed=control_embed,
+            view=discord.ui.View()
+                .add_item(ControlPanel())
+                .add_item(AnalyticsDashboard())
+                .add_item(UserManagement())
+                .add_item(VersionControl())
+                .add_item(AdvancedUserManagement())
+        )
+
     except Exception as e:
         error_embed = discord.Embed(
             title="❌ Setup Failed",
@@ -1547,17 +1558,6 @@ async def updateversion(ctx, version: str, *, changelog: str):
         inline=False
     )
     await ctx.send(embed=embed)
-
-# Add these to your control panel setup
-control_panel_message = await control_channel.send(
-    embed=control_embed,
-    view=discord.ui.View()
-        .add_item(ControlPanel())
-        .add_item(AnalyticsDashboard())
-        .add_item(UserManagement())
-        .add_item(VersionControl())
-        .add_item(AdvancedUserManagement())
-)
 
 # AI Support System
 support_config = {
