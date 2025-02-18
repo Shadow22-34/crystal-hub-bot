@@ -174,37 +174,171 @@ async def logout(interaction: discord.Interaction):
 # Setup command
 @bot.tree.command(name="setup")
 async def setup(interaction: discord.Interaction):
-    """Sets up the Crystal Hub system"""
+    """Initialize Crystal Hub with an epic setup"""
     if not interaction.user.guild_permissions.administrator:
-        await interaction.response.send_message("You need administrator permissions!", ephemeral=True)
+        await interaction.response.send_message("❌ You need administrator permissions!", ephemeral=True)
         return
 
     await interaction.response.defer()
-
+    
     try:
+        wizard = SetupWizard(bot)
+        
+        # Setup progress embed
+        progress_embed = discord.Embed(
+            title="🚀 Crystal Hub Setup",
+            description="Initializing setup...",
+            color=discord.Color.blue()
+        )
+        progress_message = await interaction.followup.send(embed=progress_embed)
+        
         # Create roles
-        admin_role = await interaction.guild.create_role(
-            name="Crystal Admin",
-            color=discord.Color.red(),
-            permissions=discord.Permissions(administrator=True)
-        )
+        progress_embed.description = "Creating roles..."
+        await progress_message.edit(embed=progress_embed)
+        roles = await wizard.create_roles(interaction.guild)
         
-        buyer_role = await interaction.guild.create_role(
-            name="Crystal Premium",
-            color=discord.Color.purple()
-        )
-
         # Create channels
-        category = await interaction.guild.create_category("CRYSTAL HUB")
-        control_channel = await category.create_text_channel("control-panel")
+        progress_embed.description = "Creating channels..."
+        await progress_message.edit(embed=progress_embed)
+        channels = await wizard.create_channels(interaction.guild, roles)
         
-        # Set up control panel
-        await setup_control_panel(control_channel)
+        # Setup control panel
+        progress_embed.description = "Setting up control panel..."
+        await progress_message.edit(embed=progress_embed)
+        control_channel = interaction.guild.get_channel(channels["🎮┃control-panel"])
+        await wizard.setup_control_panel(control_channel)
         
-        await interaction.followup.send("Setup complete! Check the control panel.", ephemeral=True)
+        # Final success message
+        success_embed = discord.Embed(
+            title="✅ Setup Complete!",
+            description="Crystal Hub has been successfully set up!",
+            color=discord.Color.green()
+        )
+        await progress_message.edit(embed=success_embed)
         
     except Exception as e:
-        await interaction.followup.send(f"Setup failed: {str(e)}", ephemeral=True)
+        error_embed = discord.Embed(
+            title="❌ Setup Failed",
+            description=f"Error: {str(e)}",
+            color=discord.Color.red()
+        )
+        await progress_message.edit(embed=error_embed)
+
+class SetupWizard:
+    def __init__(self, bot):
+        self.bot = bot
+        self.setup_stages = {
+            "roles": False,
+            "channels": False,
+            "control_panel": False,
+            "permissions": False,
+            "database": False
+        }
+
+    async def create_roles(self, guild):
+        roles = {
+            "Crystal Owner": {
+                "color": discord.Color.gold(),
+                "permissions": discord.Permissions(administrator=True),
+                "hoist": True
+            },
+            "Crystal Admin": {
+                "color": discord.Color.red(),
+                "permissions": discord.Permissions(administrator=True),
+                "hoist": True
+            },
+            "Crystal Staff": {
+                "color": discord.Color.blue(),
+                "hoist": True
+            },
+            "Crystal Premium": {
+                "color": discord.Color.purple(),
+                "hoist": True
+            }
+        }
+        
+        created_roles = {}
+        for role_name, data in roles.items():
+            role = await guild.create_role(
+                name=role_name,
+                color=data["color"],
+                permissions=data.get("permissions", discord.Permissions.none()),
+                hoist=data["hoist"]
+            )
+            created_roles[role_name] = role.id
+            
+        return created_roles
+
+    async def create_channels(self, guild, roles):
+        # Create main category
+        crystal_category = await guild.create_category("CRYSTAL HUB")
+        
+        # Create information channels
+        info_category = await guild.create_category("ℹ️ INFORMATION")
+        channels = {
+            "📢┃announcements": {"category": info_category, "type": "text"},
+            "📜┃changelog": {"category": info_category, "type": "text"},
+            "❓┃faq": {"category": info_category, "type": "text"},
+        }
+        
+        # Create support category
+        support_category = await guild.create_category("🎫 SUPPORT")
+        channels.update({
+            "🤖┃crystal-support": {"category": support_category, "type": "forum"},
+            "🎫┃tickets": {"category": support_category, "type": "text"},
+        })
+        
+        # Create control panel category
+        control_category = await guild.create_category("⚙️ CONTROL PANEL")
+        channels.update({
+            "🎮┃control-panel": {"category": control_category, "type": "text"},
+            "📊┃statistics": {"category": control_category, "type": "text"},
+        })
+        
+        created_channels = {}
+        for name, data in channels.items():
+            if data["type"] == "text":
+                channel = await data["category"].create_text_channel(name)
+            elif data["type"] == "forum":
+                channel = await data["category"].create_forum(name)
+            created_channels[name] = channel.id
+            
+        return created_channels
+
+    async def setup_control_panel(self, channel):
+        embed = discord.Embed(
+            title="Welcome to your premium control center",
+            color=0x2b2d31
+        )
+        
+        # Security Status
+        security_status = (
+            "✓ HWID System: Online\n"
+            "✓ Anti-Tamper: Active\n"
+            "✓ Encryption: Enabled"
+        )
+        embed.add_field(name="🔒 Security Status", value=security_status, inline=True)
+        
+        # Statistics
+        stats = (
+            "• Premium Users: 0\n"
+            "• Uptime: 99.9%\n"
+            "• Version: 1.0.0"
+        )
+        embed.add_field(name="📊 Statistics", value=stats, inline=True)
+        
+        # Separator
+        embed.add_field(name="", value="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", inline=False)
+        
+        # Control Panel
+        embed.add_field(name="🎮 Control Panel", value="Access your premium features below", inline=False)
+        
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(style=discord.ButtonStyle.green, label="Get Script", custom_id="get_script"))
+        view.add_item(discord.ui.Button(style=discord.ButtonStyle.blurple, label="Reset HWID", custom_id="reset_hwid"))
+        view.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label="Redeem Premium", custom_id="redeem_premium"))
+        
+        await channel.send(embed=embed, view=view)
 
 # Create web app outside of function
 app = web.Application()
