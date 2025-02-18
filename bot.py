@@ -854,16 +854,195 @@ end
 # Control panel setup
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
-async def setupcontrol(ctx):
-    """Set up the control panel"""
-    embed = discord.Embed(
-        title="🎮 Crystal Hub Control Panel",
-        description="Welcome to the premium control panel!\n\n"
-                   "🔑 **Get Script** - Get your HWID-locked script\n"
-                   "🔄 **Reset HWID** - Reset your HWID (3 resets max)\n",
-        color=discord.Color.purple()
+async def setup(ctx):
+    """Create the ultimate Crystal Hub control panel"""
+    try:
+        # Delete previous messages to start fresh
+        await ctx.channel.purge(limit=100)
+        
+        # Main welcome banner
+        welcome_embed = discord.Embed(
+            title="🌟 Crystal Hub Premium",
+            description="Welcome to the exclusive Crystal Hub control panel.\nYour premium experience starts here.",
+            color=discord.Color.purple()
+        )
+        welcome_embed.set_thumbnail(url="https://your-crystal-logo-url.png")
+        welcome_embed.add_field(
+            name="🔒 Security",
+            value="• HWID Protection\n• Anti-Tamper System\n• 24/7 Monitoring",
+            inline=True
+        )
+        welcome_embed.add_field(
+            name="✨ Features",
+            value="• Instant Script Access\n• Auto-Updates\n• Priority Support",
+            inline=True
+        )
+        await ctx.send(embed=welcome_embed)
+        
+        # Separator
+        separator = discord.Embed(color=discord.Color.purple())
+        separator.set_image(url="https://i.imgur.com/wvbwk6G.png")
+        await ctx.send(embed=separator)
+        
+        # Status panel
+        status_embed = discord.Embed(
+            title="📊 System Status",
+            color=discord.Color.green()
+        )
+        status_embed.add_field(
+            name="🟢 Server Status",
+            value="Operational",
+            inline=True
+        )
+        status_embed.add_field(
+            name="📈 Uptime",
+            value="99.9%",
+            inline=True
+        )
+        status_embed.add_field(
+            name="👥 Active Users",
+            value=f"{len(hwid_data['users'])}",
+            inline=True
+        )
+        await ctx.send(embed=status_embed)
+        
+        # Control panel
+        control_embed = discord.Embed(
+            title="🎮 Control Panel",
+            description="Access your premium features below",
+            color=discord.Color.purple()
+        )
+        control_embed.add_field(
+            name="🔑 Get Script",
+            value="Get your HWID-locked premium script",
+            inline=False
+        )
+        control_embed.add_field(
+            name="🔄 Reset HWID",
+            value="Reset your HWID (3 resets maximum)",
+            inline=False
+        )
+        control_embed.add_field(
+            name="❓ Need Help?",
+            value="Contact our support team for assistance",
+            inline=False
+        )
+        await ctx.send(embed=control_embed, view=ControlPanel())
+        
+        # Information panel
+        info_embed = discord.Embed(
+            title="ℹ️ Information",
+            color=discord.Color.blue()
+        )
+        info_embed.add_field(
+            name="📖 Commands",
+            value="```\n"
+                  "!getscript - Get your script\n"
+                  "!resethwid - Reset your HWID\n"
+                  "!support - Get help\n"
+                  "```",
+            inline=False
+        )
+        info_embed.add_field(
+            name="🛡️ Admin Commands",
+            value="```\n"
+                  "!givepremium @user - Grant premium\n"
+                  "!resetpremium @user - Force HWID reset\n"
+                  "!blacklist @user - Blacklist user\n"
+                  "```",
+            inline=False
+        )
+        await ctx.send(embed=info_embed)
+        
+        # Support panel
+        support_embed = discord.Embed(
+            title="📞 Support",
+            description="Need assistance? Our team is here to help!",
+            color=discord.Color.green()
+        )
+        support_embed.add_field(
+            name="🎫 Open Ticket",
+            value="Click the button below to create a support ticket",
+            inline=False
+        )
+        support_embed.add_field(
+            name="📱 Contact",
+            value="Discord: Your-Support-Tag\nEmail: support@crystalhub.com",
+            inline=False
+        )
+        await ctx.send(embed=support_embed)
+        
+        # Footer
+        footer_embed = discord.Embed(
+            description="Crystal Hub Premium © 2024 - All rights reserved",
+            color=discord.Color.purple()
+        )
+        await ctx.send(embed=footer_embed)
+        
+        # Log setup completion
+        log_message("SETUP", f"✅ Control panel created by {ctx.author}")
+        
+    except Exception as e:
+        log_message("SETUP", "❌ Failed to create control panel", e)
+        await ctx.send(f"❌ Error: {str(e)}")
+
+# Enhanced Control Panel with animations
+class ControlPanel(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(
+        label="🔑 Get Script",
+        style=discord.ButtonStyle.green,
+        custom_id="get_script"
     )
-    
-    await ctx.send(embed=embed, view=ControlPanel())
+    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not any(role.id == BUYER_ROLE_ID for role in interaction.user.roles):
+            await interaction.response.send_message(
+                embed=discord.Embed(
+                    title="❌ Access Denied",
+                    description="You need the premium role to access this feature!",
+                    color=discord.Color.red()
+                ),
+                ephemeral=True
+            )
+            return
+
+        # Loading animation
+        loading_embed = discord.Embed(
+            title="⚡ Generating Script",
+            description="Please wait while we prepare your script...",
+            color=discord.Color.yellow()
+        )
+        await interaction.response.send_message(embed=loading_embed, ephemeral=True)
+        
+        user_id = str(interaction.user.id)
+        if user_id not in hwid_data["users"]:
+            hwid = hashlib.sha256(f"{platform.node()}{uuid.getnode()}".encode()).hexdigest()
+            hwid_data["users"][user_id] = {"hwid": hwid, "resets": 0}
+            await save_hwid_data()
+
+        script = generate_hwid_script(interaction.user.id, hwid_data["users"][user_id]["hwid"])
+        
+        success_embed = discord.Embed(
+            title="✅ Script Generated",
+            description="Your HWID-locked premium script is ready!",
+            color=discord.Color.green()
+        )
+        success_embed.add_field(
+            name="HWID",
+            value=f"```{hwid_data['users'][user_id]['hwid'][:16]}...```",
+            inline=False
+        )
+        success_embed.add_field(
+            name="Resets Available",
+            value=f"```{3 - hwid_data['users'][user_id]['resets']}/3```",
+            inline=False
+        )
+        
+        file = discord.File(io.StringIO(script), filename="crystal_hub_premium.lua")
+        await interaction.edit_original_response(embed=success_embed, attachments=[file])
+
+    # ... rest of your control panel buttons ...
 
 bot.run(os.getenv('DISCORD_TOKEN'))
