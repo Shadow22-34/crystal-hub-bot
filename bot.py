@@ -71,7 +71,7 @@ async def save_keys():
 
 load_dotenv()
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
+bot = commands.Bot(command_prefix="!", intents=discord.Intents.all(), help_command=None)
 
 # Create web app outside of function
 app = web.Application()
@@ -1170,8 +1170,8 @@ class ControlPanel(discord.ui.View):
             
         # Add redeem logic here...
 
-@bot.command()
-async def help(ctx):
+@bot.command(name='crystalhelp')
+async def crystal_help(ctx):
     """Enhanced help command"""
     help_embed = discord.Embed(
         title="🌟 Crystal Hub Commands",
@@ -1186,6 +1186,7 @@ async def help(ctx):
     `!announce` - Schedule announcements
     `!blacklist` - Manage blacklisted users
     `!givepremium` - Grant premium access
+    `!updateversion` - Update script version
     """
     help_embed.add_field(
         name="👑 Admin Commands",
@@ -1195,8 +1196,10 @@ async def help(ctx):
     
     # User Commands
     user_cmds = """
-    `!help` - Show this message
+    `!crystalhelp` - Show this message
     `!time` - Show server time
+    `!getscript` - Get your premium script
+    `!resethwid` - Reset your HWID (3 times max)
     """
     help_embed.add_field(
         name="👤 User Commands",
@@ -1204,484 +1207,19 @@ async def help(ctx):
         inline=False
     )
     
-    help_embed.set_footer(text="Crystal Hub Premium © 2024")
-    await ctx.send(embed=help_embed)
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def setupsupportai(ctx):
-    """Set up the AI Support System"""
-    try:
-        # Create category first
-        category = await ctx.guild.create_category("🤖 CRYSTAL AI SUPPORT")
-        
-        # Create forum channel with proper permissions
-        forum_channel = await ctx.guild.create_forum(
-            name="🎫┃crystal-support",
-            category=category,
-            topic="Crystal Hub AI Support System"
-        )
-        
-        # Rest of the setup code...
-        
-    except Exception as e:
-        await ctx.send(f"❌ Setup failed: {str(e)}")
-
-# Analytics system
-analytics_data = {
-    "daily_users": {},
-    "script_executions": {},
-    "peak_times": [],
-    "total_executions": 0,
-    "user_stats": {}
-}
-
-try:
-    with open("analytics.json", "r") as f:
-        analytics_data = json.load(f)
-except FileNotFoundError:
-    with open("analytics.json", "w") as f:
-        json.dump(analytics_data, f, indent=4)
-
-async def save_analytics():
-    async with aiofiles.open("analytics.json", "w") as f:
-        await f.write(json.dumps(analytics_data, indent=4))
-
-async def track_execution(user_id: str):
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    current_hour = datetime.datetime.now().strftime("%H:00")
-    
-    # Track daily users
-    if today not in analytics_data["daily_users"]:
-        analytics_data["daily_users"][today] = []
-    if user_id not in analytics_data["daily_users"][today]:
-        analytics_data["daily_users"][today].append(user_id)
-    
-    # Track executions
-    if today not in analytics_data["script_executions"]:
-        analytics_data["script_executions"][today] = {}
-    if current_hour not in analytics_data["script_executions"][today]:
-        analytics_data["script_executions"][today][current_hour] = 0
-    analytics_data["script_executions"][today][current_hour] += 1
-    
-    # Track user stats
-    if user_id not in analytics_data["user_stats"]:
-        analytics_data["user_stats"][user_id] = {
-            "total_executions": 0,
-            "last_execution": None,
-            "favorite_times": {}
-        }
-    
-    analytics_data["user_stats"][user_id]["total_executions"] += 1
-    analytics_data["user_stats"][user_id]["last_execution"] = datetime.datetime.now().isoformat()
-    
-    if current_hour not in analytics_data["user_stats"][user_id]["favorite_times"]:
-        analytics_data["user_stats"][user_id]["favorite_times"][current_hour] = 0
-    analytics_data["user_stats"][user_id]["favorite_times"][current_hour] += 1
-    
-    analytics_data["total_executions"] += 1
-    await save_analytics()
-
-# Enhanced Control Panel with Analytics
-class AnalyticsDashboard(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="📊 View Analytics", style=discord.ButtonStyle.blurple)
-    async def view_analytics(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
-            return
-            
-        today = datetime.datetime.now().strftime("%Y-%m-%d")
-        
-        analytics_embed = discord.Embed(
-            title="📈 Crystal Hub Analytics",
-            description="Real-time statistics and insights",
-            color=discord.Color.blue()
-        )
-        
-        # Daily Stats
-        daily_users = len(analytics_data["daily_users"].get(today, []))
-        analytics_embed.add_field(
-            name="📊 Today's Statistics",
-            value=f"```\nActive Users: {daily_users}\nExecutions: {sum(analytics_data['script_executions'].get(today, {}).values())}\nPeak Hour: {max(analytics_data['script_executions'].get(today, {'00:00': 0}).items(), key=lambda x: x[1])[0]}```",
-            inline=False
-        )
-        
-        # Total Stats
-        analytics_embed.add_field(
-            name="🌟 Overall Statistics",
-            value=f"```\nTotal Executions: {analytics_data['total_executions']}\nTotal Users: {len(analytics_data['user_stats'])}\nAverage Daily Users: {daily_users}```",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=analytics_embed, ephemeral=True)
-
-# User Management Dashboard
-class UserManagement(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="👥 User Management", style=discord.ButtonStyle.green)
-    async def manage_users(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
-            return
-            
-        users_embed = discord.Embed(
-            title="👥 User Management",
-            description="Manage Crystal Hub users",
-            color=discord.Color.green()
-        )
-        
-        # Active users
-        active_users = []
-        for user_id, stats in analytics_data["user_stats"].items():
-            user = interaction.guild.get_member(int(user_id))
-            if user:
-                last_exec = datetime.datetime.fromisoformat(stats["last_execution"]) if stats["last_execution"] else None
-                active_users.append(f"{user.mention}: {stats['total_executions']} executions")
-        
-        users_embed.add_field(
-            name="🎮 Active Users",
-            value="\n".join(active_users[:10]) if active_users else "No active users",
-            inline=False
-        )
-        
-        # Blacklisted users
-        blacklisted = []
-        for user_id in server_config["blacklist"]:
-            user = interaction.guild.get_member(user_id)
-            if user:
-                blacklisted.append(user.mention)
-        
-        users_embed.add_field(
-            name="⛔ Blacklisted Users",
-            value="\n".join(blacklisted) if blacklisted else "No blacklisted users",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=users_embed, ephemeral=True)
-
-# Automated Announcements
-class AnnouncementSystem:
-    def __init__(self):
-        self.bot = None
-        self.announcements = []
-    
-    def init_bot(self, bot):
-        self.bot = bot
-        self.bot.loop.create_task(self.announcement_loop())
-    
-    async def add_announcement(self, title, content, timestamp):
-        self.announcements.append({
-            "title": title,
-            "content": content,
-            "timestamp": timestamp
-        })
-        
-    async def announcement_loop(self):
-        while True:
-            now = datetime.datetime.now()
-            for announcement in self.announcements[:]:
-                if now >= announcement["timestamp"]:
-                    channel = self.bot.get_channel(server_config["control_channel_id"])
-                    if channel:
-                        embed = discord.Embed(
-                            title=announcement["title"],
-                            description=announcement["content"],
-                            color=discord.Color.gold()
-                        )
-                        await channel.send(embed=embed)
-                        self.announcements.remove(announcement)
-            await asyncio.sleep(60)
-
-# Create a single instance
-announcement_system = AnnouncementSystem()
-
-# Add setup hook to bot
-@bot.event
-async def setup_hook():
-    """Initialize systems when bot starts"""
-    announcement_system.init_bot(bot)
-    auto_updater.init_bot(bot)  # Add this if you have auto_updater
-    print("✅ Systems initialized successfully!")
-
-# Update the announce command
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def announce(ctx, delay_hours: int, *, message):
-    """Schedule an announcement"""
-    timestamp = datetime.datetime.now() + datetime.timedelta(hours=delay_hours)
-    await announcement_system.add_announcement(
-        "📢 Crystal Hub Announcement",
-        message,
-        timestamp
-    )
-    await ctx.send(f"✅ Announcement scheduled for {timestamp}")
-
-# Version Control System
-version_data = {
-    "current_version": "1.0.0",
-    "versions": {
-        "1.0.0": {
-            "release_date": datetime.datetime.now().isoformat(),
-            "changes": ["Initial release"],
-            "script_url": "https://raw.githubusercontent.com/your-repo/main/v1.lua"
-        }
-    },
-    "auto_update": True
-}
-
-try:
-    with open("versions.json", "r") as f:
-        version_data = json.load(f)
-except FileNotFoundError:
-    with open("versions.json", "w") as f:
-        json.dump(version_data, f, indent=4)
-
-async def save_versions():
-    async with aiofiles.open("versions.json", "w") as f:
-        await f.write(json.dumps(version_data, indent=4))
-
-# Enhanced Analytics with Game Tracking
-analytics_data.update({
-    "game_stats": {},
-    "version_stats": {},
-    "performance_metrics": {},
-    "user_retention": {}
-})
-
-# Version Control Panel
-class VersionControl(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="🔄 Version Manager", style=discord.ButtonStyle.blurple)
-    async def version_manager(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
-            return
-        
-        version_embed = discord.Embed(
-            title="🔄 Version Control",
-            description=f"Current Version: `{version_data['current_version']}`",
-            color=discord.Color.blue()
-        )
-        
-        # Version history
-        history = ""
-        for version, data in version_data["versions"].items():
-            history += f"**{version}** - {data['release_date']}\n"
-            for change in data["changes"]:
-                history += f"• {change}\n"
-            history += "\n"
-        
-        version_embed.add_field(
-            name="📜 Version History",
-            value=history or "No version history",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=version_embed, ephemeral=True)
-
-# Enhanced User Management
-class AdvancedUserManagement(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="📊 User Analytics", style=discord.ButtonStyle.green)
-    async def user_analytics(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if not any(role.id == server_config["admin_role_id"] for role in interaction.user.roles):
-            await interaction.response.send_message("❌ Admin only feature!", ephemeral=True)
-            return
-        
-        analytics_embed = discord.Embed(
-            title="📊 Advanced User Analytics",
-            description="Detailed user statistics and metrics",
-            color=discord.Color.green()
-        )
-        
-        # User retention
-        retention_data = analytics_data["user_retention"]
-        weekly_retention = len([u for u in analytics_data["user_stats"].values() 
-                              if datetime.datetime.fromisoformat(u["last_execution"]) > 
-                              datetime.datetime.now() - datetime.timedelta(days=7)])
-        
-        analytics_embed.add_field(
-            name="👥 User Retention",
-            value=f"```\nWeekly Active: {weekly_retention}\nRetention Rate: {(weekly_retention/len(analytics_data['user_stats'])*100):.1f}%\n```",
-            inline=False
-        )
-        
-        # Game statistics
-        game_stats = ""
-        for game, stats in analytics_data["game_stats"].items():
-            game_stats += f"{game}: {stats['executions']} executions\n"
-        
-        analytics_embed.add_field(
-            name="🎮 Game Statistics",
-            value=f"```\n{game_stats or 'No game data'}```",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=analytics_embed, ephemeral=True)
-
-# Auto-Update System
-class AutoUpdateSystem:
-    def __init__(self):
-        self.bot = None
-    
-    def init_bot(self, bot):
-        self.bot = bot
-        self.bot.loop.create_task(self.update_checker())
-    
-    async def check_for_updates(self):
-        # Simulate checking for updates (replace with your actual update check)
-        return {
-            "version": "1.0.1",
-            "changes": ["Bug fixes", "New features"],
-            "script_url": "https://raw.githubusercontent.com/your-repo/main/v1.1.lua"
-        }
-    
-    async def update_checker(self):
-        while True:
-            if version_data["auto_update"]:
-                try:
-                    update = await self.check_for_updates()
-                    if update["version"] > version_data["current_version"]:
-                        # New version available
-                        version_data["versions"][update["version"]] = {
-                            "release_date": datetime.datetime.now().isoformat(),
-                            "changes": update["changes"],
-                            "script_url": update["script_url"]
-                        }
-                        version_data["current_version"] = update["version"]
-                        await save_versions()
-                        
-                        # Announce update
-                        channel = self.bot.get_channel(server_config["control_channel_id"])
-                        if channel:
-                            update_embed = discord.Embed(
-                                title="🆕 New Update Available!",
-                                description=f"Version {update['version']} has been released!",
-                                color=discord.Color.green()
-                            )
-                            update_embed.add_field(
-                                name="📝 Changes",
-                                value="\n".join(f"• {change}" for change in update["changes"]),
-                                inline=False
-                            )
-                            await channel.send(embed=update_embed)
-                except Exception as e:
-                    print(f"Update check failed: {e}")
-            
-            await asyncio.sleep(3600)  # Check every hour
-
-# Initialize auto-update system
-auto_updater = AutoUpdateSystem()
-
-# Add to your setup command
-@bot.command()
-@commands.has_role(ADMIN_ROLE_ID)
-async def updateversion(ctx, version: str, *, changelog: str):
-    """Update the script version"""
-    if version in version_data["versions"]:
-        await ctx.send("❌ Version already exists!")
-        return
-    
-    version_data["versions"][version] = {
-        "release_date": datetime.datetime.now().isoformat(),
-        "changes": [change.strip() for change in changelog.split(';')],
-        "script_url": f"https://raw.githubusercontent.com/your-repo/main/v{version}.lua"
-    }
-    version_data["current_version"] = version
-    await save_versions()
-    
-    embed = discord.Embed(
-        title="✅ Version Updated",
-        description=f"Successfully updated to version {version}",
-        color=discord.Color.green()
-    )
-    embed.add_field(
-        name="📝 Changelog",
-        value="\n".join(f"• {change}" for change in version_data["versions"][version]["changes"]),
+    # Support Commands
+    support_cmds = """
+    Create a post in <#${support_config['forum_channel_id']}> for AI assistance
+    Use language selection to get help in your preferred language
+    """
+    help_embed.add_field(
+        name="🎫 Support System",
+        value=support_cmds.strip(),
         inline=False
     )
-    await ctx.send(embed=embed)
-
-# AI Support System
-support_config = {
-    "forum_channel_id": None,
-    "support_role_id": 1337656413442281482,
-    "languages": [
-        {"name": "English", "emoji": "🇬🇧", "code": "en"},
-        {"name": "Spanish", "emoji": "🇪🇸", "code": "es"},
-        {"name": "French", "emoji": "🇫🇷", "code": "fr"},
-        {"name": "German", "emoji": "🇩🇪", "code": "de"},
-        {"name": "Russian", "emoji": "🇷🇺", "code": "ru"},
-        {"name": "Chinese", "emoji": "🇨🇳", "code": "zh"},
-        {"name": "Japanese", "emoji": "🇯🇵", "code": "ja"},
-        {"name": "Korean", "emoji": "🇰🇷", "code": "ko"},
-        {"name": "Arabic", "emoji": "🇸🇦", "code": "ar"},
-        {"name": "Portuguese", "emoji": "🇵🇹", "code": "pt"}
-    ],
-    "common_issues": {
-        "ui_not_showing": {
-            "steps": [
-                "Check if your executor is supported",
-                "Try reinjecting the script",
-                "Clear your executor's workspace",
-                "Ensure you're using the latest version"
-            ],
-            "solution": "If the UI is not showing up, first try rejoining the game and reinjecting the script. If the issue persists, make sure you're using a supported executor like Synapse X, KRNL, or Script-Ware."
-        },
-        "hwid_error": {
-            "steps": [
-                "Verify your HWID hasn't been reset",
-                "Check if you're blacklisted",
-                "Request HWID reset if needed"
-            ],
-            "solution": "HWID errors usually occur when your hardware configuration has changed. You can request a HWID reset from the control panel."
-        }
-        # Add more common issues
-    }
-}
-
-class LanguageSelector(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.selected_language = None
-        self.setup_buttons()
     
-    def setup_buttons(self):
-        # Create a fancy grid of language buttons
-        for i, lang in enumerate(support_config["languages"]):
-            button = discord.ui.Button(
-                label=lang["name"],
-                emoji=lang["emoji"],
-                custom_id=f"lang_{lang['code']}",
-                row=i // 3,
-                style=discord.ButtonStyle.blurple
-            )
-            button.callback = self.language_callback
-            self.add_item(button)
-    
-    async def language_callback(self, interaction: discord.Interaction):
-        lang_code = interaction.custom_id.split("_")[1]
-        lang = next(l for l in support_config["languages"] if l["code"] == lang_code)
-        
-        await interaction.response.edit_message(
-            embed=discord.Embed(
-                title=f"{lang['emoji']} Language Selected: {lang['name']}",
-                description="Thank you for selecting your language. Please describe your issue, and our AI assistant will help you.",
-                color=discord.Color.green()
-            ),
-            view=None
-        )
-        self.selected_language = lang_code
-        self.stop()
+    help_embed.set_footer(text="Crystal Hub Premium © 2024")
+    await ctx.send(embed=help_embed)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
