@@ -1329,9 +1329,12 @@ class UserManagement(discord.ui.View):
 
 # Automated Announcements
 class AnnouncementSystem:
-    def __init__(self, bot):
-        self.bot = bot
+    def __init__(self):
+        self.bot = None
         self.announcements = []
+    
+    def init_bot(self, bot):
+        self.bot = bot
         self.bot.loop.create_task(self.announcement_loop())
     
     async def add_announcement(self, title, content, timestamp):
@@ -1357,9 +1360,18 @@ class AnnouncementSystem:
                         self.announcements.remove(announcement)
             await asyncio.sleep(60)
 
-# Add to your setup command
-announcement_system = AnnouncementSystem(bot)
+# Create a single instance
+announcement_system = AnnouncementSystem()
 
+# Add setup hook to bot
+@bot.event
+async def setup_hook():
+    """Initialize systems when bot starts"""
+    announcement_system.init_bot(bot)
+    auto_updater.init_bot(bot)  # Add this if you have auto_updater
+    print("✅ Systems initialized successfully!")
+
+# Update the announce command
 @bot.command()
 @commands.has_role(ADMIN_ROLE_ID)
 async def announce(ctx, delay_hours: int, *, message):
@@ -1481,7 +1493,10 @@ class AdvancedUserManagement(discord.ui.View):
 
 # Auto-Update System
 class AutoUpdateSystem:
-    def __init__(self, bot):
+    def __init__(self):
+        self.bot = None
+    
+    def init_bot(self, bot):
         self.bot = bot
         self.bot.loop.create_task(self.update_checker())
     
@@ -1528,7 +1543,7 @@ class AutoUpdateSystem:
             await asyncio.sleep(3600)  # Check every hour
 
 # Initialize auto-update system
-auto_updater = AutoUpdateSystem(bot)
+auto_updater = AutoUpdateSystem()
 
 # Add to your setup command
 @bot.command()
