@@ -71,7 +71,7 @@ async def save_keys():
 
 load_dotenv()
 
-bot = commands.Bot(command_prefix="!", intents=discord.Intents.all(), help_command=None)
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.all(), help_command=None)
 
 # Create web app outside of function
 app = web.Application()
@@ -1187,6 +1187,14 @@ async def crystal_help(ctx):
     `!blacklist` - Manage blacklisted users
     `!givepremium` - Grant premium access
     `!updateversion` - Update script version
+    
+    **Script Management:**
+    `!addgame <name> <script>` - Add new game script
+    `!updatescript <game> <version> <script>` - Update game script
+    `!obfuscate <game>` - Obfuscate game script
+    `!scriptinfo [game]` - View script information
+    `!backupscripts` - Backup all scripts
+    `!restorescripts` - Restore from backup
     """
     help_embed.add_field(
         name="👑 Admin Commands",
@@ -1334,5 +1342,257 @@ async def process_support_issue(content: str):
         color=discord.Color.orange()
     )
     return {"embed": escalation_embed, "needs_human": True}
+
+# Script Management System
+script_database = {
+    "games": {},
+    "versions": {},
+    "obfuscated": {}
+}
+
+try:
+    with open("script_database.json", "r") as f:
+        script_database = json.load(f)
+except FileNotFoundError:
+    with open("script_database.json", "w") as f:
+        json.dump(script_database, f, indent=4)
+
+async def save_scripts():
+    async with aiofiles.open("script_database.json", "w") as f:
+        await f.write(json.dumps(script_database, indent=4))
+
+class EnhancedControlPanel(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="🎮 Get Script", style=discord.ButtonStyle.green, row=0)
+    async def get_script(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not check_premium(interaction.user):
+            await interaction.response.send_message("❌ Premium required!", ephemeral=True)
+            return
+            
+        # Create game selection dropdown
+        games = [discord.SelectOption(label=game, description=f"v{data['version']}")
+                for game, data in script_database["games"].items()]
+        
+        select = discord.ui.Select(
+            placeholder="Select a game...",
+            options=games
+        )
+        
+        view = discord.ui.View()
+        view.add_item(select)
+        await interaction.response.send_message("Choose your game:", view=view, ephemeral=True)
+    
+    @discord.ui.button(label="🔄 Reset HWID", style=discord.ButtonStyle.blurple, row=1)
+    async def reset_hwid(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # HWID reset logic here...
+    
+    @discord.ui.button(label="⭐ Redeem Premium", style=discord.ButtonStyle.primary, row=2)
+    async def redeem_premium(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Premium redemption logic here...
+
+# Script Management Commands
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def addgame(ctx, game_name: str, *, script_content: str):
+    """Add a new game script"""
+    script_database["games"][game_name] = {
+        "version": "1.0.0",
+        "script": script_content,
+        "added_by": ctx.author.id,
+        "date_added": datetime.datetime.now().isoformat()
+    }
+    await save_scripts()
+    
+    embed = discord.Embed(
+        title="✅ Game Added",
+        description=f"Successfully added script for {game_name}",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def updatescript(ctx, game_name: str, version: str, *, script_content: str):
+    """Update an existing game script"""
+    if game_name not in script_database["games"]:
+        await ctx.send("❌ Game not found!")
+        return
+    
+    script_database["games"][game_name].update({
+        "version": version,
+        "script": script_content,
+        "last_updated": datetime.datetime.now().isoformat(),
+        "updated_by": ctx.author.id
+    })
+    await save_scripts()
+    
+    embed = discord.Embed(
+        title="✅ Script Updated",
+        description=f"Updated {game_name} to version {version}",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def obfuscate(ctx, game_name: str):
+    """Obfuscate a game script"""
+    if game_name not in script_database["games"]:
+        await ctx.send("❌ Game not found!")
+        return
+    
+    script = script_database["games"][game_name]["script"]
+    
+    # Advanced obfuscation
+    obfuscated = await obfuscate_script(script)
+    
+    script_database["obfuscated"][game_name] = {
+        "script": obfuscated,
+        "version": script_database["games"][game_name]["version"],
+        "obfuscated_at": datetime.datetime.now().isoformat()
+    }
+    await save_scripts()
+    
+    file = discord.File(
+        io.StringIO(obfuscated),
+        filename=f"{game_name}_obfuscated.lua"
+    )
+    await ctx.send("✅ Script obfuscated:", file=file)
+
+async def obfuscate_script(script: str) -> str:
+    """Advanced script obfuscation"""
+    # Add your obfuscation logic here
+    # This is a placeholder for your actual obfuscation code
+    obfuscated = f"""
+-- Crystal Hub Premium Obfuscation
+-- {datetime.datetime.now().isoformat()}
+local function decode(str)
+    return (str:gsub('..', function(cc)
+        return string.char(tonumber(cc, 16))
+    end))
+end
+{script}
+"""
+    return obfuscated
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def scriptinfo(ctx, game_name: str = None):
+    """View script information"""
+    if game_name and game_name not in script_database["games"]:
+        await ctx.send("❌ Game not found!")
+        return
+    
+    embed = discord.Embed(
+        title="🎮 Script Information",
+        color=discord.Color.blue()
+    )
+    
+    if game_name:
+        game = script_database["games"][game_name]
+        embed.add_field(name="Game", value=game_name, inline=False)
+        embed.add_field(name="Version", value=game["version"], inline=True)
+        embed.add_field(name="Last Updated", value=game["last_updated"], inline=True)
+    else:
+        for game, data in script_database["games"].items():
+            embed.add_field(
+                name=game,
+                value=f"Version: {data['version']}\nLast Updated: {data['last_updated']}",
+                inline=False
+            )
+    
+    await ctx.send(embed=embed)
+
+# Support system fix
+support_config = {
+    "forum_channel_id": None,
+    "support_role_id": 1337656413442281482,
+    "languages": [
+        {"name": "English", "emoji": "🇬🇧", "code": "en"},
+        {"name": "Spanish", "emoji": "🇪🇸", "code": "es"},
+        # ... other languages ...
+    ]
+}
+
+# New backup commands
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def backupscripts(ctx):
+    """Backup all scripts"""
+    try:
+        backup_data = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "scripts": script_database,
+            "backed_up_by": ctx.author.id
+        }
+        
+        backup_file = f"backup_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(backup_file, "w") as f:
+            json.dump(backup_data, f, indent=4)
+            
+        await ctx.send(file=discord.File(backup_file))
+        os.remove(backup_file)  # Clean up
+        
+        embed = discord.Embed(
+            title="✅ Backup Complete",
+            description="All scripts have been backed up successfully!",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ Backup failed: {str(e)}")
+
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def restorescripts(ctx):
+    """Restore scripts from backup"""
+    if not ctx.message.attachments:
+        await ctx.send("❌ Please attach a backup file!")
+        return
+        
+    try:
+        backup_file = await ctx.message.attachments[0].read()
+        backup_data = json.loads(backup_file)
+        
+        # Verify backup data
+        if "scripts" not in backup_data:
+            await ctx.send("❌ Invalid backup file!")
+            return
+            
+        script_database.update(backup_data["scripts"])
+        await save_scripts()
+        
+        embed = discord.Embed(
+            title="✅ Restore Complete",
+            description=f"Scripts restored from backup dated {backup_data['timestamp']}",
+            color=discord.Color.green()
+        )
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ Restore failed: {str(e)}")
+
+# Version control command
+@bot.command()
+@commands.has_role(ADMIN_ROLE_ID)
+async def updateversion(ctx, game_name: str, new_version: str):
+    """Update game script version"""
+    if game_name not in script_database["games"]:
+        await ctx.send("❌ Game not found!")
+        return
+        
+    old_version = script_database["games"][game_name]["version"]
+    script_database["games"][game_name]["version"] = new_version
+    await save_scripts()
+    
+    embed = discord.Embed(
+        title="✅ Version Updated",
+        description=f"Updated {game_name} from v{old_version} to v{new_version}",
+        color=discord.Color.green()
+    )
+    await ctx.send(embed=embed)
 
 bot.run(os.getenv('DISCORD_TOKEN'))
