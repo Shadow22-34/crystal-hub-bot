@@ -1,11 +1,14 @@
 import discord
 import io
-from . import bot, hwid_data, check_premium
-from .integration import AutoIntegration
+from integration import hwid_data, AutoIntegration
+
+def check_premium(user):
+    return str(user.id) in hwid_data["users"]
 
 class EnhancedControlPanel(discord.ui.View):
-    def __init__(self):
+    def __init__(self, bot):
         super().__init__(timeout=None)
+        self.bot = bot
         self.integration = AutoIntegration(bot)
         
     async def generate_embed(self) -> discord.Embed:
@@ -26,8 +29,8 @@ class EnhancedControlPanel(discord.ui.View):
         # Statistics
         stats = (
             f"• Premium Users: {len(hwid_data['users'])}\n"
-            f"• Uptime: {get_uptime()}\n"
-            f"• Version: {CRYSTAL_VERSION}"
+            f"• Uptime: {self.bot.uptime}\n"
+            f"• Version: 1.0.0"
         )
         embed.add_field(name="📊 Statistics", value=stats, inline=True)
         
