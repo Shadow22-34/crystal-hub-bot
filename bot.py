@@ -81,6 +81,33 @@ async def save_keys():
 
 load_dotenv()
 
+async def load_configs():
+    """Load all configuration files"""
+    try:
+        # Load server config
+        try:
+            async with aiofiles.open("server_config.json", "r") as f:
+                content = await f.read()
+                server_config = json.loads(content)
+        except FileNotFoundError:
+            server_config = {
+                "admin_role_id": None,
+                "buyer_role_id": None,
+                "control_channel_id": None,
+                "is_setup": False
+            }
+            async with aiofiles.open("server_config.json", "w") as f:
+                await f.write(json.dumps(server_config, indent=4))
+                
+        # Load script database if not already loaded
+        if not hasattr(bot, "script_database"):
+            bot.script_database = script_database
+            
+        return True
+    except Exception as e:
+        print(f"Error loading configs: {e}")
+        return False
+
 class CrystalBot(commands.Bot):
     def __init__(self):
         super().__init__(
