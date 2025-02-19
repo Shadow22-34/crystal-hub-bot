@@ -18,11 +18,11 @@ class AdminCommands(commands.Cog):
         obfuscated = await self.obfuscator.obfuscate(script)
         # Rest of obfuscation logic...
 
-    @commands.hybrid_command()
+    @commands.hybrid_command(name="givepremium")
     @commands.has_role("💎 Crystal Admin")
-    async def givepremium(self, ctx, user: discord.Member, days: int = 30):
+    async def give_premium(self, ctx, user: discord.Member, days: int = 30):
         """Grant premium access to a user"""
-        buyer_role = ctx.guild.get_role(BUYER_ROLE_ID)
+        buyer_role = discord.utils.get(ctx.guild.roles, name="⭐ Crystal Premium")
         if not buyer_role:
             await ctx.send("❌ Buyer role not found!")
             return
@@ -33,7 +33,7 @@ class AdminCommands(commands.Cog):
             "resets": 0,
             "expiry": (datetime.datetime.now() + timedelta(days=days)).isoformat()
         }
-        await save_hwid_data()
+        await save_scripts()  # Save the updated data
         await user.add_roles(buyer_role)
         
         embed = discord.Embed(
@@ -43,21 +43,20 @@ class AdminCommands(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.hybrid_command()
+    @commands.hybrid_command(name="blacklist")
     @commands.has_role("💎 Crystal Admin")
-    async def blacklist(self, ctx, user: discord.Member):
-        """Blacklist a user from Crystal Hub"""
+    async def blacklist_user(self, ctx, user: discord.Member):
+        """Blacklist a user from using Crystal Hub"""
         user_id = str(user.id)
-        if user_id in hwid_data["blacklist"]:
-            await ctx.send("❌ User is already blacklisted!")
-            return
+        if user_id in hwid_data["users"]:
+            del hwid_data["users"][user_id]
         
         hwid_data["blacklist"].append(user_id)
-        await save_hwid_data()
+        await save_scripts()
         
         embed = discord.Embed(
-            title="⛔ User Blacklisted",
-            description=f"{user.mention} has been blacklisted",
+            title="🚫 User Blacklisted",
+            description=f"{user.mention} has been blacklisted from Crystal Hub",
             color=discord.Color.red()
         )
         await ctx.send(embed=embed)
