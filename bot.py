@@ -91,11 +91,13 @@ class CrystalBot(commands.Bot):
         # Initialize our systems
         self.obfuscator = CrystalObfuscator()
         self.integration = AutoIntegration(self)
-        self.control_panel = EnhancedControlPanel(self)
         self.script_database = script_database
         self.hwid_data = hwid_data
         
     async def setup_hook(self):
+        # Initialize control panel after event loop is running
+        self.control_panel = EnhancedControlPanel(self)
+        
         # Load configurations
         await load_configs()
         
