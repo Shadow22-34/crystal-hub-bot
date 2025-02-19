@@ -7,9 +7,16 @@ def check_premium(user):
 
 class EnhancedControlPanel(discord.ui.View):
     def __init__(self, bot):
+        # Initialize with running event loop
         super().__init__(timeout=None)
         self.bot = bot
         self.integration = AutoIntegration(bot)
+    
+    @classmethod
+    async def create(cls, bot):
+        # Factory method for async initialization
+        self = cls(bot)
+        return self
         
     async def generate_embed(self) -> discord.Embed:
         """Generate the control panel embed"""
