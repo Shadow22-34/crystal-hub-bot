@@ -23,23 +23,20 @@ from discord import app_commands
 # Import our modules
 from obfuscation import CrystalObfuscator
 from integration import AutoIntegration, hwid_data, script_database, save_scripts
-from control_panel import EnhancedControlPanel
+from control_panel import EnhancedControlPanel, ControlPanel
+from setup_wizard import SetupWizard
 from cogs.admin import AdminCommands
 from cogs.scripts import ScriptManagement
 from cogs.setup import SetupCommands
 
-# Update these constants with your actual Discord IDs
+# Constants
 CLIENT_ID = "1340636044873302047"
 CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
 REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
 KEY_LOG_CHANNEL_ID = 1340825360769613834
-
-# Replace these with your actual role IDs from your Discord server
-CONTROL_PANEL_CHANNEL_ID = 1340825360769613834  # The channel where control panel will be
-BUYER_ROLE_ID = 1340825360769613834  # Your "Premium" or "Buyer" role ID
-ADMIN_ROLE_ID = 1340825360769613834  # Your admin role ID
-
-# At the top with your other imports
+CONTROL_PANEL_CHANNEL_ID = 1340825360769613834
+BUYER_ROLE_ID = 1340825360769613834
+ADMIN_ROLE_ID = 1340825360769613834
 KEYS_FILE = "keys.json"
 
 # HWID management
@@ -137,6 +134,15 @@ class CrystalBot(commands.Bot):
         
         # Sync commands
         await self.tree.sync()
+
+    @commands.Cog.listener()
+    async def on_ready(self):
+        print(f"Logged in as {self.user}")
+        try:
+            await start_server()
+            print("✅ Server initialization complete")
+        except Exception as e:
+            print(f"❌ Failed to start server: {e}")
 
 # Initialize the bot
 bot = CrystalBot()
