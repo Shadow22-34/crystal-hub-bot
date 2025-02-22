@@ -1,197 +1,138 @@
 import discord
 from discord.ext import commands
+from aiohttp import web
+import asyncio
+from urllib.parse import urlencode
+import aiohttp
+import random
+import datetime
+import os
+from dotenv import load_dotenv
+import json
+import aiofiles
+from datetime import timedelta
+import base64
+import cryptography
+from cryptography.fernet import Fernet
+import io
+import hashlib
+import platform
+import uuid
+from discord import app_commands
 
-class SetupWizard:
-    def __init__(self, bot):
-        self.bot = bot
+# Import our modules
+from obfuscation import CrystalObfuscator
+from integration import AutoIntegration, hwid_data, script_database, save_scripts
+from control_panel import EnhancedControlPanel
+from cogs.admin import AdminCommands
+from cogs.scripts import ScriptManagement
+from cogs.setup import SetupCommands
 
-    async def create_roles(self, guild):
-        """Create necessary roles"""
-        roles = {}
-        
-        # Create admin role
-        roles["admin"] = await guild.create_role(
-            name="💎 Crystal Admin",
-            color=discord.Color.red(),
-            permissions=discord.Permissions(administrator=True),
-            hoist=True
-        )
-        
-        # Create buyer role
-        roles["buyer"] = await guild.create_role(
-            name="⭐ Crystal Premium",
-            color=discord.Color.purple(),
-            hoist=True
-        )
-        
-        return roles
+# Update these constants with your actual Discord IDs
+CLIENT_ID = "1340636044873302047"
+CLIENT_SECRET = "GquszKToNTRH6M9iDnof3HaA8TLEnSiD"
+REDIRECT_URI = "https://crystal-hub-bot.onrender.com/api/discord/redirect"
+KEY_LOG_CHANNEL_ID = 1340825360769613834
 
-    async def create_channels(self, guild, roles):
-        """Create necessary channels"""
-        channels = {}
-        
-        # Create category
-        category = await guild.create_category("🌟 CRYSTAL HUB", position=0)
-        
-        # Set up permissions
-        overwrites = {
-            guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            roles["buyer"]: discord.PermissionOverwrite(read_messages=True),
-            roles["admin"]: discord.PermissionOverwrite(read_messages=True, manage_messages=True)
-        }
-        
-        # Create channels
-        channels["control"] = await category.create_text_channel(
-            "🎮┃control-panel",
-            overwrites=overwrites,
-            topic="Crystal Hub Premium Control Panel"
-        )
-        
-        channels["announcements"] = await category.create_text_channel(
-            "📢┃announcements",
-            overwrites=overwrites
-        )
-        
-        channels["support"] = await category.create_text_channel(
-            "🎫┃support",
-            overwrites=overwrites
-        )
-        
-        return channels
+# Replace these with your actual role IDs from your Discord server
+CONTROL_PANEL_CHANNEL_ID = 1340825360769613834
+BUYER_ROLE_ID = 1340825360769613834
+ADMIN_ROLE_ID = 1340825360769613834
 
-    async def setup_control_panel(self, channel, announcements, support, hwid_data):
-        """Set up the control panel with all embeds"""
-        await channel.purge(limit=100)
+# At the top with your other imports
+KEYS_FILE = "keys.json"
 
-        # Welcome Banner
-        welcome_embed = discord.Embed(
-            title="",
-            description="",
-            color=discord.Color.purple()
-        )
-        welcome_embed.set_image(url="https://your-banner-image.png")
-        await channel.send(embed=welcome_embed)
+# HWID management
+hwid_data = {
+    "users": {},  # Store user HWIDs
+    "resets": {},  # Track HWID resets
+    "blacklist": []
+}
 
-        # Status Dashboard
-        status_embed = discord.Embed(
-            title="🎮 Crystal Hub Dashboard",
-            description="Welcome to your premium control center",
-            color=discord.Color.purple()
-        )
-        status_embed.add_field(
-            name="🔐 Security Status",
-            value="```\n✓ HWID System: Online\n✓ Anti-Tamper: Active\n✓ Encryption: Enabled\n```",
-            inline=True
-        )
-        status_embed.add_field(
-            name="📊 Statistics",
-            value=f"```\n• Premium Users: {len(hwid_data['users'])}\n• Uptime: 99.9%\n• Version: 1.0.0\n```",
-            inline=True
-        )
-        await channel.send(embed=status_embed)
-        await channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+try:
+    with open("hwid_data.json", "r") as f:
+        hwid_data = json.load(f)
+except FileNotFoundError:
+    with open("hwid_data.json", "w") as f:
+        json.dump(hwid_data, f, indent=4)
 
-        # Information Section
-        info_embed = discord.Embed(
-            title="ℹ️ Information",
-            description="Everything you need to know about Crystal Hub",
-            color=discord.Color.blue()
-        )
-        info_embed.add_field(
-            name="🎮 Supported Games",
-            value="• Basketball Legends\n• More coming soon...",
-            inline=True
-        )
-        info_embed.add_field(
-            name="🔧 Support",
-            value="• 24/7 Support\n• Priority Updates\n• Exclusive Features",
-            inline=True
-        )
-        await channel.send(embed=info_embed)
+async def save_hwid_data():
+    async with aiofiles.open("hwid_data.json", "w") as f:
+        await f.write(json.dumps(hwid_data, indent=4))
 
-        # Quick Links
-        links_embed = discord.Embed(
-            title="🔗 Quick Links",
-            description="Important resources at your fingertips",
-            color=discord.Color.green()
-        )
-        links_embed.add_field(
-            name="📚 Documentation",
-            value="[View Documentation](https://docs.crystalhub.com)",
-            inline=True
-        )
-        links_embed.add_field(
-            name="📢 Announcements",
-            value=f"Check {announcements.mention} for updates",
-            inline=True
-        )
-        links_embed.add_field(
-            name="🎫 Support",
-            value=f"Visit {support.mention} for help",
-            inline=True
-        )
-        await channel.send(embed=links_embed)
+# Initialize keys structure
+keys_data = {
+    "generated": {},  # Store generated keys
+    "activated": {}   # Store activated keys
+}
 
-        # Footer
-        footer_embed = discord.Embed(
-            description="Crystal Hub Premium © 2024 - All rights reserved",
-            color=discord.Color.purple()
-        )
-        await channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        await channel.send(embed=footer_embed)
+# Load existing keys if file exists
+try:
+    with open(KEYS_FILE, 'r') as f:
+        keys_data = json.load(f)
+except FileNotFoundError:
+    # Create file if it doesn't exist
+    with open(KEYS_FILE, 'w') as f:
+        json.dump(keys_data, f, indent=4)
 
-        # Create the control panel with all views
-        control_embed = discord.Embed(
-            title="🎮 Control Panel",
-            description="Access your premium features below",
-            color=discord.Color.purple()
-        )
-        control_embed.add_field(
-            name="🔑 Script Access",
-            value="• Get your HWID-locked script\n• Auto-updates included\n• Premium features",
-            inline=True
-        )
-        control_embed.add_field(
-            name="🔄 HWID Management",
-            value="• View your HWID\n• Reset when needed\n• Security status",
-            inline=True
-        )
-        control_embed.add_field(
-            name="📱 Quick Actions",
-            value="Click the buttons below to access features",
-            inline=False
-        )
-        await channel.send(embed=control_embed, view=ControlPanel())
+async def save_keys():
+    async with aiofiles.open(KEYS_FILE, 'w') as f:
+        await f.write(json.dumps(keys_data, indent=4))
 
-    async def start_setup(self, ctx):
-        """Start the setup process"""
-        # Send initial message
-        setup_embed = discord.Embed(
-            title="🚀 Crystal Hub Setup",
-            description="Setting up your premium experience...",
-            color=discord.Color.blue()
-        )
-        status_msg = await ctx.send(embed=setup_embed)
+load_dotenv()
+
+async def load_configs():
+    """Load all configuration files"""
+    try:
+        # Load HWID data
+        if os.path.exists("hwid_data.json"):
+            async with aiofiles.open("hwid_data.json", "r") as f:
+                content = await f.read()
+                hwid_data.update(json.loads(content))
         
-        # Create roles
-        setup_embed.description = "Creating roles..."
-        await status_msg.edit(embed=setup_embed)
-        roles = await self.create_roles(ctx.guild)
+        # Load script database
+        if os.path.exists("scripts.json"):
+            async with aiofiles.open("scripts.json", "r") as f:
+                content = await f.read()
+                script_database.update(json.loads(content))
         
-        # Create channels
-        setup_embed.description = "Creating channels..."
-        await status_msg.edit(embed=setup_embed)
-        channels = await self.create_channels(ctx.guild, roles)
-        
-        # Setup control panel
-        setup_embed.description = "Setting up control panel..."
-        await status_msg.edit(embed=setup_embed)
-        await self.setup_control_panel(channels["control"], channels["announcements"], channels["support"], hwid_data)
-        
-        # Final success message
-        success_embed = discord.Embed(
-            title="✅ Setup Complete",
-            description="Crystal Hub has been successfully set up!",
-            color=discord.Color.green()
+        return True
+    except Exception as e:
+        print(f"Error loading configs: {e}")
+        return False
+
+class CrystalBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="!",
+            intents=discord.Intents.all(),
+            help_command=None
         )
-        await status_msg.edit(embed=success_embed) 
+        # Initialize our systems
+        self.obfuscator = CrystalObfuscator()
+        self.integration = AutoIntegration(self)
+        self.script_database = script_database
+        self.hwid_data = hwid_data
+        
+    async def setup_hook(self):
+        # Initialize control panel after event loop is running
+        self.control_panel = EnhancedControlPanel(self)
+        
+        # Load configurations
+        await load_configs()
+        
+        # Load cogs
+        await self.load_extension("cogs.admin")
+        await self.load_extension("cogs.scripts")
+        await self.load_extension("cogs.setup")
+        await self.load_extension("cogs.support")
+        await self.load_extension("cogs.help")
+        
+        # Sync commands
+        await self.tree.sync()
+
+# Initialize bot
+bot = CrystalBot()
+
+# Run the bot
+bot.run(os.getenv('DISCORD_TOKEN'))
