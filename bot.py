@@ -303,122 +303,6 @@ async def setup(interaction: discord.Interaction):
         )
         await interaction.followup.send(embed=error_embed)
 
-class SetupWizard:
-    def __init__(self, bot):
-        self.bot = bot
-        self.setup_stages = {
-            "roles": False,
-            "channels": False,
-            "control_panel": False,
-            "permissions": False,
-            "database": False
-        }
-
-    async def create_roles(self, guild):
-        roles = {
-            "Crystal Owner": {
-                "color": discord.Color.gold(),
-                "permissions": discord.Permissions(administrator=True),
-                "hoist": True
-            },
-            "Crystal Admin": {
-                "color": discord.Color.red(),
-                "permissions": discord.Permissions(administrator=True),
-                "hoist": True
-            },
-            "Crystal Staff": {
-                "color": discord.Color.blue(),
-                "hoist": True
-            },
-            "Crystal Premium": {
-                "color": discord.Color.purple(),
-                "hoist": True
-            }
-        }
-        
-        created_roles = {}
-        for role_name, data in roles.items():
-            role = await guild.create_role(
-                name=role_name,
-                color=data["color"],
-                permissions=data.get("permissions", discord.Permissions.none()),
-                hoist=data["hoist"]
-            )
-            created_roles[role_name] = role.id
-            
-        return created_roles
-
-    async def create_channels(self, guild, roles):
-        # Create main category
-        crystal_category = await guild.create_category("CRYSTAL HUB")
-        
-        # Create information channels
-        info_category = await guild.create_category("ℹ️ INFORMATION")
-        channels = {
-            "📢┃announcements": {"category": info_category, "type": "text"},
-            "📜┃changelog": {"category": info_category, "type": "text"},
-            "❓┃faq": {"category": info_category, "type": "text"},
-        }
-        
-        # Create support category
-        support_category = await guild.create_category("🎫 SUPPORT")
-        channels.update({
-            "🤖┃crystal-support": {"category": support_category, "type": "forum"},
-            "🎫┃tickets": {"category": support_category, "type": "text"},
-        })
-        
-        # Create control panel category
-        control_category = await guild.create_category("⚙️ CONTROL PANEL")
-        channels.update({
-            "🎮┃control-panel": {"category": control_category, "type": "text"},
-            "📊┃statistics": {"category": control_category, "type": "text"},
-        })
-        
-        created_channels = {}
-        for name, data in channels.items():
-            if data["type"] == "text":
-                channel = await data["category"].create_text_channel(name)
-            elif data["type"] == "forum":
-                channel = await data["category"].create_forum(name)
-            created_channels[name] = channel.id
-            
-        return created_channels
-
-    async def setup_control_panel(self, channel, announcements, support, hwid_data):
-        embed = discord.Embed(
-            title="Welcome to your premium control center",
-            color=0x2b2d31
-        )
-        
-        # Security Status
-        security_status = (
-            "✓ HWID System: Online\n"
-            "✓ Anti-Tamper: Active\n"
-            "✓ Encryption: Enabled"
-        )
-        embed.add_field(name="🔒 Security Status", value=security_status, inline=True)
-        
-        # Statistics
-        stats = (
-            "• Premium Users: 0\n"
-            "• Uptime: 99.9%\n"
-            "• Version: 1.0.0"
-        )
-        embed.add_field(name="📊 Statistics", value=stats, inline=True)
-        
-        # Separator
-        embed.add_field(name="", value="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", inline=False)
-        
-        # Control Panel
-        embed.add_field(name="🎮 Control Panel", value="Access your premium features below", inline=False)
-        
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(style=discord.ButtonStyle.green, label="Get Script", custom_id="get_script"))
-        view.add_item(discord.ui.Button(style=discord.ButtonStyle.blurple, label="Reset HWID", custom_id="reset_hwid"))
-        view.add_item(discord.ui.Button(style=discord.ButtonStyle.primary, label="Redeem Premium", custom_id="redeem_premium"))
-        
-        await channel.send(embed=embed, view=view)
-
 # Create web app outside of function
 app = web.Application()
 
@@ -779,7 +663,7 @@ end)
                     try:
                         # Send key embed
                         key_embed = discord.Embed(
-                            title="🔮 Crystal Hub Key",
+                            title="�� Crystal Hub Key",
                             description=f"Here's your key: `{key}`",
                             color=discord.Color.purple()
                         )
