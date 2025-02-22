@@ -1100,65 +1100,6 @@ async def save_config():
     async with aiofiles.open("server_config.json", "w") as f:
         await f.write(json.dumps(server_config, indent=4))
 
-@bot.command()
-async def setup(ctx):
-    """Initial setup for Crystal Hub"""
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ You need administrator permissions!")
-        return
-
-    try:
-        setup_embed = discord.Embed(
-            title="🚀 Crystal Hub Setup",
-            description="Setting up your premium experience...",
-            color=discord.Color.blue()
-        )
-        status_msg = await ctx.send(embed=setup_embed)
-
-        # Create roles with better styling
-        admin_role = await ctx.guild.create_role(
-            name="💎 Crystal Admin",
-            color=discord.Color.red(),
-            permissions=discord.Permissions(administrator=True),
-            hoist=True  # Shows role separately in member list
-        )
-        
-        buyer_role = await ctx.guild.create_role(
-            name="⭐ Crystal Premium",
-            color=discord.Color.purple(),
-            hoist=True
-        )
-
-        # Create category and channels
-        category = await ctx.guild.create_category(
-            "🌟 CRYSTAL HUB",
-            position=0
-        )
-
-        # Set permissions for category
-        overwrites = {
-            ctx.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            buyer_role: discord.PermissionOverwrite(read_messages=True),
-            admin_role: discord.PermissionOverwrite(read_messages=True, manage_messages=True)
-        }
-
-        # Create organized channels
-        control_channel = await category.create_text_channel(
-            '💫┃control-panel',
-            overwrites=overwrites,
-            topic="Crystal Hub Premium Control Panel"
-        )
-        
-        announcements = await category.create_text_channel(
-            '📢┃announcements',
-            overwrites=overwrites
-        )
-        
-        support = await category.create_text_channel(
-            '🎫┃support',
-            overwrites=overwrites
-        )
-
         # Save configuration
         server_config.update({
             "admin_role_id": admin_role.id,
@@ -1317,22 +1258,6 @@ def check_admin(ctx):
 def check_buyer(ctx):
     return discord.utils.get(ctx.author.roles, id=server_config["buyer_role_id"]) is not None
 
-# Example of using the new role checks
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def givepremium(ctx, user: discord.Member):
-    """Grant premium access to a user"""
-    if not check_admin(ctx):
-        await ctx.send("❌ You need the Crystal Admin role!")
-        return
-        
-    try:
-        buyer_role = ctx.guild.get_role(server_config["buyer_role_id"])
-        await user.add_roles(buyer_role)
-        await ctx.send(f"✅ Gave premium to {user.mention}")
-    except Exception as e:
-        await ctx.send(f"❌ Error: {str(e)}")
-
 # Blacklist management
 async def add_to_blacklist(user_id: int):
     server_config["blacklist"].append(user_id)
@@ -1344,33 +1269,6 @@ async def remove_from_blacklist(user_id: int):
         await save_config()
 
 # Admin commands
-@bot.command()
-async def blacklist(ctx, user: discord.Member):
-    """Blacklist a user from using Crystal Hub"""
-    if not check_admin(ctx):
-        await ctx.send("❌ You need the Crystal Admin role!")
-        return
-
-    user_id = user.id
-    if user_id in server_config["blacklist"]:
-        await ctx.send("❌ User is already blacklisted!")
-        return
-
-    await add_to_blacklist(user_id)
-    
-    # Remove premium role if they have it
-    if server_config["buyer_role_id"]:
-        buyer_role = ctx.guild.get_role(server_config["buyer_role_id"])
-        if buyer_role in user.roles:
-            await user.remove_roles(buyer_role)
-
-    embed = discord.Embed(
-        title="⛔ User Blacklisted",
-        description=f"{user.mention} has been blacklisted from Crystal Hub",
-        color=discord.Color.red()
-    )
-    await ctx.send(embed=embed)
-
 @bot.command()
 async def unblacklist(ctx, user: discord.Member):
     """Remove a user from the blacklist"""
@@ -1390,53 +1288,6 @@ async def unblacklist(ctx, user: discord.Member):
         color=discord.Color.green()
     )
     await ctx.send(embed=embed)
-
-@bot.command()
-async def resetup(ctx):
-    """Reconfigure Crystal Hub setup"""
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("❌ You need administrator permissions!")
-        return
-
-    confirm_embed = discord.Embed(
-        title="⚠️ Reset Confirmation",
-        description="This will reset all Crystal Hub settings. Are you sure?",
-        color=discord.Color.yellow()
-    )
-    
-    class ConfirmView(discord.ui.View):
-        def __init__(self):
-            super().__init__(timeout=30)
-            
-        @discord.ui.button(label="✅ Confirm", style=discord.ButtonStyle.danger)
-        async def confirm(self, interaction: discord.Interaction, button: discord.ui.Button):
-            if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message("❌ Only the command author can confirm!", ephemeral=True)
-                return
-                
-            # Reset configuration
-            server_config.clear()
-            server_config.update({
-                "admin_role_id": None,
-                "buyer_role_id": None,
-                "control_channel_id": None,
-                "blacklist": [],
-                "theme_color": discord.Color.purple().value,
-                "is_setup": False
-            })
-            await save_config()
-            
-            await interaction.response.send_message("✅ Configuration reset! Run `!setup` to reconfigure.")
-            
-        @discord.ui.button(label="❌ Cancel", style=discord.ButtonStyle.grey)
-        async def cancel(self, interaction: discord.Interaction, button: discord.ui.Button):
-            if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message("❌ Only the command author can cancel!", ephemeral=True)
-                return
-                
-            await interaction.response.send_message("Operation cancelled.")
-            
-    await ctx.send(embed=confirm_embed, view=ConfirmView())
 
 # Enhanced Control Panel
 class ControlPanel(discord.ui.View):
@@ -1523,7 +1374,6 @@ async def help(interaction: discord.Interaction):
     if interaction.user.get_role(ADMIN_ROLE_ID):
         admin_cmds = """
         `/setup` - Initialize Crystal Hub
-        `/givepremium` - Grant premium access
         `/blacklist` - Blacklist a user
         `/addscript` - Add a new script
         """
