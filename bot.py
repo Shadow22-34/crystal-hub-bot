@@ -133,6 +133,7 @@ class CrystalBot(commands.Bot):
         await self.load_extension("cogs.scripts")
         await self.load_extension("cogs.setup")
         await self.load_extension("cogs.support")
+        await self.load_extension("cogs.help")
         
         # Sync commands
         await self.tree.sync()
