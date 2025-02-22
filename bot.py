@@ -278,8 +278,8 @@ async def setup(interaction: discord.Interaction):
         # Setup control panel
         progress_embed.description = "Setting up control panel..."
         await progress_message.edit(embed=progress_embed)
-        control_channel = interaction.guild.get_channel(channels["🎮┃control-panel"])
-        await wizard.setup_control_panel(control_channel)
+        control_channel = interaction.guild.get_channel(channels["control"])
+        await wizard.setup_control_panel(control_channel, channels["announcements"], channels["support"], hwid_data)
         
         # Final success message
         success_embed = discord.Embed(
@@ -295,7 +295,7 @@ async def setup(interaction: discord.Interaction):
             description=f"Error: {str(e)}",
             color=discord.Color.red()
         )
-        await progress_message.edit(embed=error_embed)
+        await interaction.followup.send(embed=error_embed)
 
 class SetupWizard:
     def __init__(self, bot):
@@ -378,7 +378,7 @@ class SetupWizard:
             
         return created_channels
 
-    async def setup_control_panel(self, channel):
+    async def setup_control_panel(self, channel, announcements, support, hwid_data):
         embed = discord.Embed(
             title="Welcome to your premium control center",
             color=0x2b2d31
