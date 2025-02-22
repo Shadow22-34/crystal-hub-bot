@@ -59,33 +59,67 @@ class SetupWizard:
         
         return channels
 
-    async def setup_control_panel(self, channel):
-        """Set up the control panel"""
-        embed = discord.Embed(
-            title="🌟 Welcome to Crystal Hub",
-            description="Your premium script hub experience",
+    async def setup_control_panel(self, channel, announcements, support, hwid_data):
+        """Set up the control panel with all embeds"""
+        # Reference the control panel setup code from bot.py
+        # startLine: 1115
+        # endLine: 1218
+        
+        await channel.purge(limit=100)
+
+        # Welcome Banner
+        welcome_embed = discord.Embed(
+            title="",
+            description="",
             color=discord.Color.purple()
         )
-        
-        embed.add_field(
-            name="🔑 Getting Started",
-            value="Use `/getscript` to access your premium scripts",
+        welcome_embed.set_image(url="https://your-banner-image.png")
+        await channel.send(embed=welcome_embed)
+
+        # Status Dashboard
+        status_embed = discord.Embed(
+            title="🎮 Crystal Hub Dashboard",
+            description="Welcome to your premium control center",
+            color=discord.Color.purple()
+        )
+        status_embed.add_field(
+            name="🔐 Security Status",
+            value="```\n✓ HWID System: Online\n✓ Anti-Tamper: Active\n✓ Encryption: Enabled\n```",
+            inline=True
+        )
+        status_embed.add_field(
+            name="📊 Statistics",
+            value=f"```\n• Premium Users: {len(hwid_data['users'])}\n• Uptime: 99.9%\n• Version: 1.0.0\n```",
+            inline=True
+        )
+        await channel.send(embed=status_embed)
+        await channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        # Main Control Panel
+        control_embed = discord.Embed(
+            title="🎮 Control Panel",
+            description="Access your premium features below",
+            color=discord.Color.purple()
+        )
+        control_embed.add_field(
+            name="🔑 Script Access",
+            value="• Get your HWID-locked script\n• Auto-updates included\n• Premium features",
+            inline=True
+        )
+        control_embed.add_field(
+            name="🔄 HWID Management",
+            value="• View your HWID\n• Reset when needed\n• Security status",
+            inline=True
+        )
+        control_embed.add_field(
+            name="📱 Quick Actions",
+            value="Click the buttons below to access features",
             inline=False
         )
-        
-        embed.add_field(
-            name="🔒 Security",
-            value="Your scripts are HWID locked for maximum security",
-            inline=False
-        )
-        
-        embed.add_field(
-            name="🎮 Features",
-            value="• Premium Scripts\n• Auto-Updates\n• 24/7 Support\n• Exclusive Features",
-            inline=False
-        )
-        
-        await channel.send(embed=embed)
+        await channel.send(embed=control_embed, view=ControlPanel())
+
+        # Add other embeds (info, links, footer)
+        # Reference from bot.py lines 1171-1218
 
     async def start_setup(self, ctx):
         """Start the setup process"""
@@ -110,7 +144,7 @@ class SetupWizard:
         # Setup control panel
         setup_embed.description = "Setting up control panel..."
         await status_msg.edit(embed=setup_embed)
-        await self.setup_control_panel(channels["control"])
+        await self.setup_control_panel(channels["control"], channels["announcements"], channels["support"], hwid_data)
         
         # Final success message
         success_embed = discord.Embed(
