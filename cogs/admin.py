@@ -33,7 +33,7 @@ class AdminCommands(commands.Cog):
             "resets": 0,
             "expiry": (datetime.datetime.now() + timedelta(days=days)).isoformat()
         }
-        await save_scripts()  # Save the updated data
+        await save_scripts()
         await user.add_roles(buyer_role)
         
         embed = discord.Embed(
