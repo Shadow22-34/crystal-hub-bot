@@ -61,10 +61,6 @@ class SetupWizard:
 
     async def setup_control_panel(self, channel, announcements, support, hwid_data):
         """Set up the control panel with all embeds"""
-        # Reference the control panel setup code from bot.py
-        # startLine: 1115
-        # endLine: 1218
-        
         await channel.purge(limit=100)
 
         # Welcome Banner
@@ -95,7 +91,56 @@ class SetupWizard:
         await channel.send(embed=status_embed)
         await channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-        # Main Control Panel
+        # Information Section
+        info_embed = discord.Embed(
+            title="ℹ️ Information",
+            description="Everything you need to know about Crystal Hub",
+            color=discord.Color.blue()
+        )
+        info_embed.add_field(
+            name="🎮 Supported Games",
+            value="• Basketball Legends\n• More coming soon...",
+            inline=True
+        )
+        info_embed.add_field(
+            name="🔧 Support",
+            value="• 24/7 Support\n• Priority Updates\n• Exclusive Features",
+            inline=True
+        )
+        await channel.send(embed=info_embed)
+
+        # Quick Links
+        links_embed = discord.Embed(
+            title="🔗 Quick Links",
+            description="Important resources at your fingertips",
+            color=discord.Color.green()
+        )
+        links_embed.add_field(
+            name="📚 Documentation",
+            value="[View Documentation](https://docs.crystalhub.com)",
+            inline=True
+        )
+        links_embed.add_field(
+            name="📢 Announcements",
+            value=f"Check {announcements.mention} for updates",
+            inline=True
+        )
+        links_embed.add_field(
+            name="🎫 Support",
+            value=f"Visit {support.mention} for help",
+            inline=True
+        )
+        await channel.send(embed=links_embed)
+
+        # Footer
+        footer_embed = discord.Embed(
+            description="Crystal Hub Premium © 2024 - All rights reserved",
+            color=discord.Color.purple()
+        )
+        await channel.send("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        await channel.send(embed=footer_embed)
+
+        # Create the control panel with all views
         control_embed = discord.Embed(
             title="🎮 Control Panel",
             description="Access your premium features below",
@@ -117,9 +162,6 @@ class SetupWizard:
             inline=False
         )
         await channel.send(embed=control_embed, view=ControlPanel())
-
-        # Add other embeds (info, links, footer)
-        # Reference from bot.py lines 1171-1218
 
     async def start_setup(self, ctx):
         """Start the setup process"""
